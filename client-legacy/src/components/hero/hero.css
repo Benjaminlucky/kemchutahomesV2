@@ -1,0 +1,37 @@
+/* Style the pagination container */
+.swiper-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 20px;
+}
+
+/* Style individual bullets */
+.swiper-pagination-bullet {
+  width: 8px;
+  height: 8px;
+  background-color: #d1d5db; /* Light gray */
+  border-radius: 50%;
+  transition: transform 0.3s, background-color 0.3s;
+  cursor: pointer;
+}
+
+/* Style for active bullet */
+.swiper-pagination-bullet-active {
+  background-color: #700ceb; /* Purple */
+  transform: scale(1.2);
+}
+
+/* Custom pagination number (if renderBullet is used) */
+.custom-pagination {
+  font-size: 14px;
+  color: #bd80f8;
+  font-weight: bold;
+  padding: 3px 3px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.custom-pagination:hover {
+  background-color: rgba(107, 33, 168, 0.1);
+}

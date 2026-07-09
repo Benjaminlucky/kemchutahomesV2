@@ -1,0 +1,5 @@
+/* Ported from client-legacy/src/components/hero — placeholder for
+   hero-specific overrides beyond the inline <style> in Hero.tsx. */
+.hero__wrapper {
+  width: 100%;
+}

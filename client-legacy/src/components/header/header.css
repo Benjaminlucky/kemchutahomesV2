@@ -1,0 +1,177 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   header.css — Kemchuta Homes Limited
+   Keeps all original rules. Adds: sticky glass, dropdown, refined responsive.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+.mainNavWrapper {
+  font-family: inherit;
+}
+
+.mainNavContent {
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    padding 0.3s ease;
+}
+
+/* ── Desktop nav link underline active state ───────────────────────────────── */
+.mainLink a {
+  position: relative;
+  padding-bottom: 2px;
+  transition: color 0.25s ease;
+  color: #262626;
+}
+
+.mainLink a:hover {
+  color: #700ceb;
+}
+
+.mainLink.active a {
+  color: #700ceb;
+  font-weight: 600;
+}
+
+.mainLink.active a::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #700ceb;
+  border-radius: 2px;
+}
+
+/* ── Mobile nav base ───────────────────────────────────────────────────────── */
+.mobile__nav {
+  /* sticky is set inline via React to allow dynamic scroll-aware changes */
+}
+
+/* ── Mobile menu panel slide-down animation (fallback for non-framer) ──────── */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Touch tap highlight removal ───────────────────────────────────────────── */
+.mobile__nav a,
+.mobile__nav button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Focus ring accessibility ──────────────────────────────────────────────── */
+.mainLink a:focus-visible,
+.userlink a:focus-visible,
+.mobile__nav a:focus-visible,
+.mobile__nav button:focus-visible {
+  outline: 2px solid #700ceb;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Logo layout guard ─────────────────────────────────────────────────────── */
+.logo img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Mobile panel scrollbar ────────────────────────────────────────────────── */
+.navwrapper::-webkit-scrollbar {
+  width: 5px;
+}
+.navwrapper::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+.navwrapper::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+.navwrapper::-webkit-scrollbar-thumb:hover {
+  background: #700ceb;
+}
+
+/* ── Extra-small screens (< 375px) ────────────────────────────────────────── */
+@media (max-width: 375px) {
+  .mobile__logo img {
+    width: 128px;
+  }
+}
+
+/* ── Prevent horizontal scroll on mobile ──────────────────────────────────── */
+@media (max-width: 767px) {
+  body {
+    overflow-x: hidden;
+  }
+  .mainNavWrapper {
+    overflow-x: hidden;
+  }
+}
+
+/* ── Tablet nav gap tightening ─────────────────────────────────────────────── */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .mainlink {
+    gap: 1rem;
+  }
+  .userlink {
+    gap: 0.5rem;
+  }
+  .mainLink a {
+    font-size: 0.8rem;
+  }
+  .desktopNav__wrapper {
+    min-height: 56px;
+  }
+}
+
+/* ── Safe area for notched phones ──────────────────────────────────────────── */
+@supports (padding: max(0px)) {
+  .mobile__logo {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
+/* ── Reduce motion for accessibility ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .mainNavContent,
+  .mainLink a,
+  button {
+    transition: none !important;
+  }
+}
+
+/* ── Dropdown menu ─────────────────────────────────────────────────────────── */
+
+/* Ensure dropdown overlays everything */
+.clientDropdown {
+  position: absolute;
+  z-index: 9999;
+}
+
+/* Desktop min-height guard for the sticky nav row */
+@media (min-width: 768px) {
+  .desktopNav__wrapper {
+    min-height: 56px;
+  }
+}
+@media (min-width: 1024px) {
+  .desktopNav__wrapper {
+    min-height: 64px;
+  }
+}
+
+/* ── xs breakpoint helper (320-479px) — used by portal badge ─────────────── */
+@media (min-width: 480px) {
+  .xs\:inline {
+    display: inline !important;
+  }
+}

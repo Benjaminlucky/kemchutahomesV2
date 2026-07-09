@@ -1,0 +1,106 @@
+/* Modern CSS Reset */
+html {
+  box-sizing: border-box;
+  -webkit-text-size-adjust: 100%; /* Prevent font scaling in iOS */
+  scroll-behavior: smooth; /* Enable smooth scrolling */
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  text-rendering: optimizeSpeed; /* Optimize text rendering */
+  -webkit-font-smoothing: antialiased;
+  color: #333; /* Default text color */
+  background-color: #fff; /* Default background color */
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit; /* Ensure consistent font styling */
+  margin: 0; /* Remove default margins */
+}
+
+button {
+  cursor: pointer; /* Improve usability */
+  background: none;
+  border: none;
+}
+
+textarea {
+  resize: vertical; /* Restrict textarea resizing */
+}
+
+ul,
+ol {
+  list-style: none; /* Remove list styling */
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+table {
+  border-collapse: collapse; /* Consistent table styles */
+  border-spacing: 0;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #ccc;
+}
+
+abbr[title] {
+  text-decoration: underline dotted; /* Standard abbreviation styling */
+}
+
+strong {
+  font-weight: bold; /* Bold styling */
+}
+
+/*Header Navigation CSS Starts Here*/
+.mainLink {
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.active {
+  color: var(--color-customPurple-500);
+  font-weight: 700;
+}
+
+.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.5rem;
+  width: 100%;
+  height: 2px;
+  background-color: var(--color-customPurple-500);
+  border-radius: 2rem;
+}
+
+/*Header Navigation Ends Here*/
