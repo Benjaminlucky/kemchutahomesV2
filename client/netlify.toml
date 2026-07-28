@@ -1,11 +1,16 @@
 # Netlify build config for the Next.js 16 App Router app. Netlify's Next.js
 # Runtime auto-detects this and handles SSR/ISR/route handlers/edge
-# middleware as Functions/Edge Functions — no publish dir or SPA rewrite
-# needed here (unlike client-legacy/netlify.toml's catch-all, which does NOT
-# apply to this app and must not be copied over).
+# middleware as Functions/Edge Functions — no SPA rewrite needed here
+# (unlike client-legacy/netlify.toml's catch-all, which does NOT apply to
+# this app and must not be copied over).
+#
+# publish must be a subfolder of base, not equal to it — the plugin errors
+# with "publish directory cannot be the same as the base directory"
+# otherwise. This is the real Next.js build output location.
 
 [build]
   command = "npm run build"
+  publish = ".next"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
