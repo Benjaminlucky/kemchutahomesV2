@@ -6,6 +6,18 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
+// Bare fetch() has no timeout — a slow/unreachable API hangs until Next's
+// own 60s-per-page static-generation ceiling fires (x3 retries), which can
+// take the entire build down even for pages that don't need this data
+// (layout.tsx's Promise.allSettled tolerates a *rejected* fetch, not one
+// that never settles). Capping every call here means a bad API day fails
+// fast instead of stalling the whole site.
+const FETCH_TIMEOUT_MS = 10_000;
+
+function withTimeout(init: RequestInit = {}): RequestInit {
+  return { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) };
+}
+
 export type Estate = {
   _id: string;
   estate: string;
@@ -63,9 +75,10 @@ export async function getEstates(
     if (value !== undefined) qs.set(key, String(value));
   }
 
-  const res = await fetch(`${API_BASE_URL}/api/estates?${qs.toString()}`, {
-    next: { revalidate: 600, tags: ["estates"] },
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/estates?${qs.toString()}`,
+    withTimeout({ next: { revalidate: 600, tags: ["estates"] } }),
+  );
 
   if (!res.ok) {
     throw new Error(`Failed to fetch estates: ${res.status}`);
@@ -79,9 +92,10 @@ export async function getEstates(
  * (see PRD §4.4 FR-1/FR-3) rather than relying on the timer.
  */
 export async function getEstateBySlug(slug: string): Promise<Estate | null> {
-  const res = await fetch(`${API_BASE_URL}/api/estates/slug/${slug}`, {
-    next: { revalidate: 3600, tags: ["estates", `estate:${slug}`] },
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/estates/slug/${slug}`,
+    withTimeout({ next: { revalidate: 3600, tags: ["estates", `estate:${slug}`] } }),
+  );
 
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -99,9 +113,10 @@ export async function getEstateBySlug(slug: string): Promise<Estate | null> {
 export async function getEstateRedirect(
   slug: string,
 ): Promise<{ target: string } | null> {
-  const res = await fetch(`${API_BASE_URL}/api/estates/redirect/${slug}`, {
-    next: { revalidate: 3600, tags: ["estates"] },
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/estates/redirect/${slug}`,
+    withTimeout({ next: { revalidate: 3600, tags: ["estates"] } }),
+  );
 
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -136,9 +151,10 @@ export type Branch = {
  * time instead of only appearing after client-side hydration.
  */
 export async function getBranches(): Promise<Branch[]> {
-  const res = await fetch(`${API_BASE_URL}/api/branches`, {
-    next: { revalidate: 3600, tags: ["branches"] },
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/branches`,
+    withTimeout({ next: { revalidate: 3600, tags: ["branches"] } }),
+  );
 
   if (!res.ok) {
     throw new Error(`Failed to fetch branches: ${res.status}`);
@@ -162,9 +178,10 @@ export type ROISettings = {
  * real numbers in the initial HTML instead of only after client fetch.
  */
 export async function getROISettings(): Promise<ROISettings> {
-  const res = await fetch(`${API_BASE_URL}/api/buy2sell/roi`, {
-    next: { revalidate: 3600, tags: ["roi-settings"] },
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/buy2sell/roi`,
+    withTimeout({ next: { revalidate: 3600, tags: ["roi-settings"] } }),
+  );
 
   if (!res.ok) {
     throw new Error(`Failed to fetch ROI settings: ${res.status}`);
@@ -206,9 +223,10 @@ export type KnowledgeBase = {
  * PRD FR-1), invalidated via the 'knowledge-base' tag on admin writes.
  */
 export async function getKnowledgeBase(): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE_URL}/api/knowledge-base`, {
-    next: { revalidate: 3600, tags: ["knowledge-base"] },
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/knowledge-base`,
+    withTimeout({ next: { revalidate: 3600, tags: ["knowledge-base"] } }),
+  );
 
   if (!res.ok) {
     throw new Error(`Failed to fetch knowledge base: ${res.status}`);
