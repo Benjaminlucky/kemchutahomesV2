@@ -9,10 +9,12 @@ export default function AuthLayout({
   headline,
   description,
   children,
+  badge = "Client Portal",
 }: {
   headline: React.ReactNode;
   description: string;
   children: React.ReactNode;
+  badge?: string;
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-[#f4f2fa] md:flex-row">
@@ -35,7 +37,7 @@ export default function AuthLayout({
 
         <div className="relative z-10 mt-auto">
           <div className="mb-6 inline-block rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold tracking-widest text-white/90 uppercase">
-            Client Portal
+            {badge}
           </div>
           <h1 className="mb-4 text-4xl leading-tight font-black text-white md:text-5xl">
             {headline}

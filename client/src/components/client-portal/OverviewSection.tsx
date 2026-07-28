@@ -43,8 +43,9 @@ export default function OverviewSection({ dashboard }: { dashboard: ClientDashbo
           </div>
           <div className="divide-y divide-customBlack-50">
             {recentSubscriptions.map((sub) => (
-              <div
+              <Link
                 key={sub._id}
+                href={`/client/portal/${sub._id}`}
                 className="flex flex-col gap-3 px-6 py-4 transition-colors hover:bg-customPurple-50/30 sm:flex-row sm:items-center sm:justify-between sm:px-8"
               >
                 <div>
@@ -56,8 +57,9 @@ export default function OverviewSection({ dashboard }: { dashboard: ClientDashbo
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-customPurple-700">{fmtNGN(sub.totalAmount)}</span>
                   <StatusBadge status={sub.status} />
+                  <ChevronRight size={14} className="text-customBlack-300" />
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </section>

@@ -65,3 +65,68 @@ export type SubscriptionListResponse = {
   page: number;
   pages: number;
 };
+
+export type SubscriptionPayment = {
+  _id: string;
+  amount: number;
+  paidAt: string;
+  method: string;
+  reference?: string;
+  note?: string;
+  recordedBy?: string;
+  confirmed: boolean;
+  confirmedBy?: string;
+  confirmedAt?: string | null;
+};
+
+export type SubscriptionDocument = {
+  _id: string;
+  type: "acknowledgement" | "invoice" | "contract" | "schedule" | "receipt" | "allocation" | "deed";
+  label: string;
+  generatedAt: string;
+};
+
+export type SubscriptionInstalment = {
+  _id: string;
+  instalmentNumber: number;
+  dueDate: string;
+  amount: number;
+  isPaid: boolean;
+  paidAt?: string | null;
+};
+
+export type SubscriptionNote = {
+  _id: string;
+  content: string;
+  type: "call" | "email" | "chat" | "note";
+  addedBy: string;
+  addedAt: string;
+};
+
+export type SubscriptionDetail = Subscription & {
+  instalmentMonths?: number | null;
+  plotSize: string;
+  surveyType: string;
+  payments: SubscriptionPayment[];
+  instalmentSchedule: SubscriptionInstalment[];
+  notes: SubscriptionNote[];
+  documents: SubscriptionDocument[];
+  confirmedByAdmin?: string;
+  confirmedAt?: string | null;
+  plotNumber?: string;
+  plotDescription?: string;
+  allocationDate?: string | null;
+  titleDocument?: string;
+  balanceRemaining: number;
+  paymentProgressPercent: number;
+};
+
+export const DOC_LABELS: Record<SubscriptionDocument["type"], string> = {
+  acknowledgement: "Subscription Acknowledgement",
+  invoice: "Payment Invoice",
+  contract: "Contract of Sale",
+  schedule: "Instalment Schedule",
+  receipt: "Payment Receipt",
+  allocation: "Letter of Allocation",
+  deed: "Deed of Assignment",
+};

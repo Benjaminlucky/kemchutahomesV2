@@ -10,6 +10,7 @@ import {
   notifyRealtorWelcomeSMS,
 } from "../utils/notifications.js";
 import { issueAuthCookies } from "../utils/authTokens.js";
+import { getLockoutStatus, recordFailedLogin, recordSuccessfulLogin } from "../utils/loginLockout.js";
 
 /* ────────────────────────────────────────────────────────────────────────────
    HELPERS
@@ -152,9 +153,19 @@ export const login = async (req, res) => {
     const realtor = await Realtor.findOne({ email });
     if (!realtor) return res.status(404).json({ message: "Realtor not found" });
 
+    const lockStatus = getLockoutStatus(realtor);
+    if (lockStatus.locked) {
+      return res.status(423).json({
+        message: `Too many failed attempts. Try again in ${lockStatus.minutesLeft} minute(s).`,
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, realtor.passwordHash);
-    if (!isMatch)
+    if (!isMatch) {
+      await recordFailedLogin(realtor);
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+    await recordSuccessfulLogin(realtor);
 
     const token = jwt.sign(
       { id: realtor._id, role: realtor.role },

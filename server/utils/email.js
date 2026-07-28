@@ -1,13 +1,19 @@
 import { Resend } from "resend";
 
-// Safety check for environment variables
-if (!process.env.RESEND_API_KEY) {
-  console.error("❌ RESEND_API_KEY MISSING: Check your .env file");
-  console.error("Get your API key from: https://resend.com/api-keys");
+// Lazy-init Resend client (shared across all functions) — constructing this
+// eagerly at module load time meant any module that merely imports this file
+// (e.g. adminController.js, purely to call sendAdminPasswordResetEmail from
+// one handler) would crash on import in any environment missing
+// RESEND_API_KEY, taking down every other handler in that file too —
+// including ones with nothing to do with email, like login. Matches the
+// already-correct lazy pattern in utils/notifications.js.
+let _resend = null;
+function getResend() {
+  if (_resend) return _resend;
+  if (!process.env.RESEND_API_KEY) return null;
+  _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
 }
-
-// Initialize Resend client (shared across all functions)
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
  * Send Elevated Welcome Email
@@ -19,6 +25,12 @@ export const sendWelcomeEmail = async ({ email, firstName }) => {
 
   try {
     const loginUrl = "https://kemchutahomesltd.com/login";
+
+    const resend = getResend();
+    if (!resend) {
+      console.warn("⚠️  RESEND_API_KEY not set — email skipped");
+      return { success: false, reason: "RESEND_API_KEY missing" };
+    }
 
     const { data, error } = await resend.emails.send({
       from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
@@ -113,6 +125,12 @@ export const sendPasswordResetEmail = async ({
   console.log(`--- Initiating Password Reset Email for: ${email} ---`);
 
   try {
+    const resend = getResend();
+    if (!resend) {
+      console.warn("⚠️  RESEND_API_KEY not set — email skipped");
+      return { success: false, reason: "RESEND_API_KEY missing" };
+    }
+
     const { data, error } = await resend.emails.send({
       from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
       to: email,
@@ -207,6 +225,12 @@ export const sendAdminPasswordResetEmail = async ({ email, resetUrl }) => {
   console.log(`--- Initiating Admin Password Reset Email for: ${email} ---`);
 
   try {
+    const resend = getResend();
+    if (!resend) {
+      console.warn("⚠️  RESEND_API_KEY not set — email skipped");
+      return { success: false, reason: "RESEND_API_KEY missing" };
+    }
+
     const { data, error } = await resend.emails.send({
       from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
       to: email,
@@ -314,6 +338,12 @@ export const sendInspectionNotification = async (inspection) => {
   );
 
   try {
+    const resend = getResend();
+    if (!resend) {
+      console.warn("⚠️  RESEND_API_KEY not set — email skipped");
+      return { success: false, reason: "RESEND_API_KEY missing" };
+    }
+
     const { data, error } = await resend.emails.send({
       from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
       to: [process.env.ADMIN_EMAIL || process.env.EMAIL_USER],
@@ -382,6 +412,12 @@ export const sendClientWelcomeEmail = async ({ email, firstName }) => {
   console.log(`--- Client Welcome Email for: ${email} ---`);
   try {
     const portalUrl = "https://kemchutahomesltd.com/client/login";
+    const resend = getResend();
+    if (!resend) {
+      console.warn("⚠️  RESEND_API_KEY not set — email skipped");
+      return { success: false, reason: "RESEND_API_KEY missing" };
+    }
+
     const { data, error } = await resend.emails.send({
       from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
       to: email,
@@ -470,6 +506,12 @@ export const sendClientPasswordResetEmail = async ({
 }) => {
   console.log(`--- Client Password Reset Email for: ${email} ---`);
   try {
+    const resend = getResend();
+    if (!resend) {
+      console.warn("⚠️  RESEND_API_KEY not set — email skipped");
+      return { success: false, reason: "RESEND_API_KEY missing" };
+    }
+
     const { data, error } = await resend.emails.send({
       from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
       to: email,

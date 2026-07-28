@@ -27,6 +27,10 @@ const clientSchema = new mongoose.Schema(
 
     role: { type: String, default: "client", enum: ["client"] },
     isActive: { type: Boolean, default: true },
+
+    // Brute-force lockout (see utils/loginLockout.js)
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );

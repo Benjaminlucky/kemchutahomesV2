@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { CalendarCheck } from "lucide-react";
 import { buildMetadata } from "@/lib/seo";
 import LogoutButton from "@/components/client-auth/LogoutButton";
 import OverviewSection from "@/components/client-portal/OverviewSection";
@@ -55,7 +57,17 @@ export default async function ClientPortalPage() {
           <h1 className="mt-1 text-3xl font-bold text-customBlack-900">Welcome back, {client.firstName}</h1>
           <p className="mt-1 text-sm text-gray-500">{client.email}</p>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-3">
+          <Link
+            href="/client/portal/inspections"
+            className="inline-flex items-center gap-2 rounded-full border-2 px-5 py-2.5 text-sm font-semibold text-customPurple-600 transition-colors hover:bg-customPurple-50"
+            style={{ borderColor: "rgba(112,12,235,0.35)" }}
+          >
+            <CalendarCheck size={15} />
+            My Inspections
+          </Link>
+          <LogoutButton />
+        </div>
       </div>
 
       {dashboard ? (

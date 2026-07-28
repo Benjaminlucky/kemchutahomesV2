@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { FormField, textInputClass, SubmitButton } from "@/components/client-auth/FormField";
@@ -73,6 +74,12 @@ export default function AdminLoginForm() {
             </button>
           </div>
         </FormField>
+
+        <p className="text-right text-sm">
+          <Link href="/admin/forgot-password" className="font-medium text-customPurple-600 hover:underline">
+            Forgot password?
+          </Link>
+        </p>
 
         {error && (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>

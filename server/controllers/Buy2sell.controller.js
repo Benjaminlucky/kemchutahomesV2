@@ -6,6 +6,10 @@ import {
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { triggerRevalidate } from "../utils/revalidate.js";
 import { invalidateChatPromptCache } from "../utils/chatPromptCache.js";
+import { getCached, invalidateCache } from "../utils/dataCache.js";
+
+const ROI_CACHE_KEY = "roi-settings";
+const ROI_TTL_MS = 5 * 60 * 1000; // PRD FR-3: same 5 min window as the chat prompt cache
 import Client from "../models/client.model.js";
 import {
   generateInvestmentCertificate,
@@ -116,14 +120,20 @@ const btn = (text, url) =>
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/buy2sell/roi  (public)
 // ─────────────────────────────────────────────────────────────────────────────
+async function loadROISettings() {
+  let s = await ROISettings.findOne({ singleton: "global" }).lean();
+  if (!s) s = (await ROISettings.create({ singleton: "global" })).toObject();
+  // Back-compat: if roiPercent1Year exists rename to 12Months
+  if (s.roiPercent1Year !== undefined && s.roiPercent12Months === undefined) {
+    s.roiPercent12Months = s.roiPercent1Year;
+  }
+  return s;
+}
+
 export const getROISettings = async (req, res) => {
   try {
-    let s = await ROISettings.findOne({ singleton: "global" }).lean();
-    if (!s) s = (await ROISettings.create({ singleton: "global" })).toObject();
-    // Back-compat: if roiPercent1Year exists rename to 12Months
-    if (s.roiPercent1Year !== undefined && s.roiPercent12Months === undefined) {
-      s.roiPercent12Months = s.roiPercent1Year;
-    }
+    const s = await getCached(ROI_CACHE_KEY, ROI_TTL_MS, loadROISettings);
+    res.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
     res.json(s);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch ROI settings" });
@@ -162,6 +172,7 @@ export const updateROISettings = async (req, res) => {
     );
     triggerRevalidate(["roi-settings"]);
     invalidateChatPromptCache();
+    invalidateCache(ROI_CACHE_KEY);
     res.json({ message: "ROI settings updated", settings });
   } catch (err) {
     res.status(500).json({ message: "Failed to update ROI settings" });

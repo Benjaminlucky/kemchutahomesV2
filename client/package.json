@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check-links": "node scripts/check-links.mjs",
-    "preflight-check": "node scripts/preflight-check.mjs"
+    "preflight-check": "node scripts/preflight-check.mjs",
+    "test": "vitest run",
+    "lhci": "lhci autorun"
   },
   "dependencies": {
     "@sentry/browser": "^10.63.0",
@@ -26,13 +28,19 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@lhci/cli": "^0.15.1",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "jsdom": "^29.1.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

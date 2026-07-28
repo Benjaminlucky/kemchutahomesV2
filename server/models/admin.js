@@ -8,6 +8,10 @@ const AdminSchema = new mongoose.Schema({
   // ✅ Password reset fields
   resetPasswordToken: { type: String },
   resetPasswordExpiry: { type: Date },
+
+  // Brute-force lockout (see utils/loginLockout.js)
+  loginAttempts: { type: Number, default: 0 },
+  lockUntil: { type: Date, default: null },
 });
 
 AdminSchema.pre("save", async function (next) {

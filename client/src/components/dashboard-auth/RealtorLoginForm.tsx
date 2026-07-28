@@ -75,6 +75,12 @@ export default function RealtorLoginForm() {
           </div>
         </FormField>
 
+        <p className="text-right text-sm">
+          <Link href="/forgot-password" className="font-medium text-customPurple-600 hover:underline">
+            Forgot password?
+          </Link>
+        </p>
+
         {error && (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>
         )}

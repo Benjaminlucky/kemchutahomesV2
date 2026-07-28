@@ -36,11 +36,15 @@ export async function generateMetadata({
 
   const description = `${estate.estate} — ${estate.sqm} ${estate.title} plot for ${estate.purpose.toLowerCase()} in ${estate.location}. Starting from ₦${estate.price}. ${estate.desc.slice(0, 120)}`;
 
+  // No `ogImage` here — the co-located opengraph-image.tsx/twitter-image.tsx
+  // files in this route segment generate a branded photo+name+price card
+  // (PRD FR-1) and take precedence over anything set in the metadata object;
+  // passing the raw Cloudinary photo here too would risk a second,
+  // unbranded og:image entry alongside the generated one.
   return buildMetadata({
     title: estate.estate,
     description,
     path: `/estate/${estate.slug}`,
-    ogImage: estate.img,
   });
 }
 

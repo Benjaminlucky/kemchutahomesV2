@@ -8,7 +8,7 @@ import DevelopingEstate from "@/components/developingestate/DevelopingEstate";
 import Whychoose from "@/components/home/Whychoose";
 import Earnhome from "@/components/home/Earnhome";
 import Homeallocate from "@/components/home/Homeallocate";
-import Reviews from "@/components/home/Reviews";
+import ReviewsClient from "@/components/home/ReviewsClient";
 
 export const metadata = buildMetadata({
   title: "Kemchuta Homes Limited",
@@ -36,7 +36,7 @@ export default async function Home() {
       <Whychoose />
       <Earnhome />
       <Homeallocate />
-      <Reviews />
+      <ReviewsClient />
     </div>
   );
 }

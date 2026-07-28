@@ -37,6 +37,10 @@ const RealtorSchema = new mongoose.Schema({
   resetPasswordToken: { type: String },
   resetPasswordExpiry: { type: Date },
 
+  // Brute-force lockout (see utils/loginLockout.js)
+  loginAttempts: { type: Number, default: 0 },
+  lockUntil: { type: Date, default: null },
+
   createdAt: { type: Date, default: Date.now },
 });
 

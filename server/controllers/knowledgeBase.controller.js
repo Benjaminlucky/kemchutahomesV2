@@ -6,18 +6,23 @@
 import { KnowledgeBase } from "../models/knowledgeBase.model.js";
 import { triggerRevalidate } from "../utils/revalidate.js";
 import { invalidateChatPromptCache } from "../utils/chatPromptCache.js";
+import { getCached, invalidateCache } from "../utils/dataCache.js";
+
+const CACHE_KEY = "knowledge-base";
+const TTL_MS = 5 * 60 * 1000; // PRD FR-3: same 5 min window as the chat prompt cache
 
 // ── Helper — get or create the singleton doc ──────────────────────────────────
 async function getOrCreate() {
-  let kb = await KnowledgeBase.findOne({ singleton: "global" });
-  if (!kb) kb = await KnowledgeBase.create({ singleton: "global" });
+  let kb = await KnowledgeBase.findOne({ singleton: "global" }).lean();
+  if (!kb) kb = await KnowledgeBase.create({ singleton: "global" }).then((doc) => doc.toObject());
   return kb;
 }
 
 // ── GET /api/knowledge-base  (public — used by chat controller) ───────────────
 export const getKnowledgeBase = async (req, res) => {
   try {
-    const kb = await getOrCreate();
+    const kb = await getCached(CACHE_KEY, TTL_MS, getOrCreate);
+    res.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
     res.json(kb);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch knowledge base" });
@@ -49,6 +54,7 @@ export const updateCompanyInfo = async (req, res) => {
     );
     triggerRevalidate(["knowledge-base"]);
     invalidateChatPromptCache();
+    invalidateCache(CACHE_KEY);
     res.json({ message: "Company info updated", companyInfo: kb.companyInfo });
   } catch (err) {
     res.status(500).json({ message: "Failed to update company info" });
@@ -79,6 +85,7 @@ export const addFaq = async (req, res) => {
     );
     triggerRevalidate(["knowledge-base"]);
     invalidateChatPromptCache();
+    invalidateCache(CACHE_KEY);
     res.status(201).json({ message: "FAQ added", faqs: kb.faqs });
   } catch (err) {
     res.status(500).json({ message: "Failed to add FAQ" });
@@ -102,6 +109,7 @@ export const updateFaq = async (req, res) => {
     const kb = await KnowledgeBase.findOne({ singleton: "global" });
     triggerRevalidate(["knowledge-base"]);
     invalidateChatPromptCache();
+    invalidateCache(CACHE_KEY);
     res.json({ message: "FAQ updated", faqs: kb.faqs });
   } catch (err) {
     res.status(500).json({ message: "Failed to update FAQ" });
@@ -118,6 +126,7 @@ export const deleteFaq = async (req, res) => {
     );
     triggerRevalidate(["knowledge-base"]);
     invalidateChatPromptCache();
+    invalidateCache(CACHE_KEY);
     res.json({ message: "FAQ deleted", faqs: kb.faqs });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete FAQ" });
@@ -138,6 +147,7 @@ export const addNotice = async (req, res) => {
     );
     triggerRevalidate(["knowledge-base"]);
     invalidateChatPromptCache();
+    invalidateCache(CACHE_KEY);
     res.status(201).json({ message: "Notice added", notices: kb.notices });
   } catch (err) {
     res.status(500).json({ message: "Failed to add notice" });
@@ -154,6 +164,7 @@ export const deleteNotice = async (req, res) => {
     );
     triggerRevalidate(["knowledge-base"]);
     invalidateChatPromptCache();
+    invalidateCache(CACHE_KEY);
     res.json({ message: "Notice deleted", notices: kb.notices });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete notice" });

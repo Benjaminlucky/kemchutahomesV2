@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Eye, Edit2, Trash2, Download, ExternalLink, Search } from "lucide-react";
 import { dashboardFetch } from "@/lib/dashboardFetch";
@@ -213,9 +214,11 @@ export default function RealtorsTable({
         {viewRealtor && (
           <div className="space-y-6">
             <div className="flex justify-center">
-              <img
+              <Image
                 src={viewRealtor.avatar || "https://ui-avatars.com/api/?name=User"}
                 alt="Avatar"
+                width={128}
+                height={128}
                 className="h-32 w-32 rounded-full border-4 border-customPurple-200 object-cover shadow-lg"
               />
             </div>

@@ -1,12 +1,25 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
-import AnnouncementBar from "@/components/announcements/AnnouncementBar";
-import Header from "@/components/header/Header";
-import Footer from "@/components/footer/Footer";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import SiteChrome from "@/components/layout/SiteChrome";
+import ChatWidgetGate from "@/components/chat/ChatWidgetGate";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
-import { getBranches, type Branch } from "@/lib/api";
+import { getBranches, getKnowledgeBase, type Branch, type KnowledgeBase } from "@/lib/api";
 import "./globals.css";
+
+// Fallback contact details if the knowledge-base fetch fails — keeps the
+// widget's WhatsApp link and error-fallback message functional even during
+// an API outage, rather than rendering broken/empty.
+const DEFAULT_COMPANY_INFO: KnowledgeBase["companyInfo"] = {
+  lagosPhone: "+234 800 000 0001",
+  asabaPhone: "+234 800 000 0003",
+  whatsappNumber: "+234 800 000 0001",
+  email: "info@kemchutahomesltd.com",
+  lagosAddress: "Lekki-Epe Expressway, Abijo, Lekki Peninsula, Lagos State",
+  asabaAddress: "Asaba, Delta State",
+  workingHours: "Monday–Friday 8am–6pm, Saturday 9am–4pm, Closed Sunday",
+  instagramHandle: "@kemchutahomesltd",
+};
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -38,21 +51,24 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // NOTE: the legacy SPA hides header/footer/announcement on /dashboard/*
-  // and /client/portal/* — replicate that once those routes are ported in
-  // Phase 5-6 (likely via a route group with its own layout).
+  // Header/footer/announcement-bar visibility on /dashboard/* and
+  // /client/portal/* is handled by SiteChrome (client-side pathname check —
+  // see that file for why this is a safe SSR/SEO tradeoff for these three).
 
   // Sitewide Organization/RealEstateAgent JSON-LD (PRD FR-1) — every public
   // page should carry this, not just /contact's per-branch LocalBusiness
   // entries. Built from the same branch data so there's one source of truth;
   // a branches-API outage must never take down page rendering, so this
   // degrades to an id-only entry rather than failing the layout.
-  let branches: Branch[] = [];
-  try {
-    branches = await getBranches();
-  } catch {
-    branches = [];
-  }
+  //
+  // Fetched alongside the knowledge base (for the chat widget's real
+  // WhatsApp/phone numbers, replacing the placeholder values the legacy SPA
+  // hardcoded) — allSettled so either source failing independently degrades
+  // to a safe default instead of taking the whole layout down.
+  const [branchesResult, kbResult] = await Promise.allSettled([getBranches(), getKnowledgeBase()]);
+  const branches: Branch[] = branchesResult.status === "fulfilled" ? branchesResult.value : [];
+  const companyInfo: KnowledgeBase["companyInfo"] =
+    kbResult.status === "fulfilled" ? kbResult.value.companyInfo : DEFAULT_COMPANY_INFO;
   const hq = branches.find((b) => b.isHQ) ?? branches[0];
   const sameAs = Array.from(
     new Set(
@@ -86,10 +102,10 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
         <GoogleAnalytics />
-        <AnnouncementBar />
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <SiteChrome>{children}</SiteChrome>
+        <ChatWidgetGate
+          companyInfo={{ whatsappNumber: companyInfo.whatsappNumber, lagosPhone: companyInfo.lagosPhone }}
+        />
       </body>
     </html>
   );

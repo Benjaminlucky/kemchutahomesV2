@@ -9,6 +9,10 @@ import {
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { triggerRevalidate } from "../utils/revalidate.js";
 import { invalidateChatPromptCache } from "../utils/chatPromptCache.js";
+import { getCached, invalidateCache } from "../utils/dataCache.js";
+
+const ESTATE_TTL_MS = 5 * 60 * 1000; // PRD FR-3: same 5 min window as the other data caches
+const estateCacheKey = (slug) => `estate:${slug}`;
 
 // ── Slug generator (unique) ──────────────────────────────────────────────────
 const generateUniqueSlug = async (name, excludeId = null) => {
@@ -86,6 +90,11 @@ export const getAllEstates = async (req, res) => {
       Estate.countDocuments(filter),
     ]);
 
+    // HTTP-cached (not in the in-memory store — filter/page/search combos are
+    // effectively unbounded, so keying an in-process cache on them risks an
+    // unbounded Map; a short s-maxage still lets a CDN/browser absorb repeat
+    // requests for the same filter combo without that risk) — PRD FR-3.
+    res.set("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=300");
     res.json({
       estates,
       total,
@@ -101,8 +110,12 @@ export const getAllEstates = async (req, res) => {
 // ── GET /api/estates/slug/:slug ──────────────────────────────────────────────
 export const getEstateBySlug = async (req, res) => {
   try {
-    const estate = await Estate.findOne({ slug: req.params.slug }).lean();
+    const slug = req.params.slug;
+    const estate = await getCached(estateCacheKey(slug), ESTATE_TTL_MS, () =>
+      Estate.findOne({ slug }).lean(),
+    );
     if (!estate) return res.status(404).json({ message: "Estate not found" });
+    res.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
     res.json(estate);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch estate" });
@@ -271,6 +284,8 @@ export const updateEstate = async (req, res) => {
 
     triggerRevalidate(["estates", `estate:${estate.slug}`, `estate:${updated.slug}`]);
     invalidateChatPromptCache();
+    invalidateCache(estateCacheKey(estate.slug));
+    invalidateCache(estateCacheKey(updated.slug));
     res.json({ message: "Estate updated successfully", estate: updated });
   } catch (err) {
     // Clean up any new uploads if update failed
@@ -310,6 +325,7 @@ export const deleteEstate = async (req, res) => {
 
     triggerRevalidate(["estates", `estate:${estate.slug}`]);
     invalidateChatPromptCache();
+    invalidateCache(estateCacheKey(estate.slug));
     res.json({ message: "Estate deleted successfully" });
   } catch (err) {
     console.error("deleteEstate:", err);
@@ -359,6 +375,7 @@ export const deleteGalleryImage = async (req, res) => {
 
     triggerRevalidate(["estates", `estate:${estate.slug}`]);
     invalidateChatPromptCache();
+    invalidateCache(estateCacheKey(estate.slug));
     res.json({ message: "Gallery image deleted", gallery: estate.gallery });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete gallery image" });
@@ -376,6 +393,7 @@ export const toggleEstateStatus = async (req, res) => {
 
     triggerRevalidate(["estates", `estate:${estate.slug}`]);
     invalidateChatPromptCache();
+    invalidateCache(estateCacheKey(estate.slug));
     res.json({
       message: `Estate ${estate.isActive ? "activated" : "deactivated"}`,
       isActive: estate.isActive,

@@ -1140,6 +1140,18 @@ export const downloadDocument = async (req, res) => {
     if (!sub)
       return res.status(404).json({ message: "Subscription not found." });
 
+    // protectAdminOrClient only checks the token is valid, not that a
+    // client-role caller owns this particular subscription — without this,
+    // any logged-in client could download another client's documents
+    // (acknowledgement, contract, invoice, receipt) by guessing/enumerating
+    // subscription IDs. Admins are unaffected: this only gates role "client".
+    if (
+      req.user?.role === "client" &&
+      sub.email?.toLowerCase() !== req.user.email?.toLowerCase()
+    ) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+
     const { docType } = req.params;
     const map = {
       acknowledgement: () => generateAcknowledgement(sub),
@@ -1149,6 +1161,11 @@ export const downloadDocument = async (req, res) => {
         return generatePaymentInvoice(sub, b);
       },
       schedule: () => generateInstallmentSchedule(sub),
+      receipt: () => {
+        const confirmed = sub.payments.filter((p) => p.confirmed);
+        const latest = confirmed[confirmed.length - 1];
+        return latest ? generateReceipt(sub, latest) : null;
+      },
       allocation: () => generateAllocationLetter(sub),
       deed: () =>
         typeof generateDeedOfAssignment === "function"

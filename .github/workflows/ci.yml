@@ -6,6 +6,17 @@ on:
   pull_request:
 
 jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   server:
     name: Server (test)
     runs-on: ubuntu-latest
@@ -23,7 +34,7 @@ jobs:
       - run: npm test
 
   client:
-    name: Client (lint, typecheck, link check, build)
+    name: Client (lint, typecheck, unit tests, link check, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,6 +49,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm test
       - name: Check for broken internal links and missing image assets
         run: npm run check-links
       # The production build statically generates estate pages from the live
@@ -49,3 +61,28 @@ jobs:
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
         run: npm run build
+
+  lighthouse:
+    name: Lighthouse CI (budgets)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    # Needs a real, reachable API to serve real content — same gate as the
+    # client build step above. See lighthouserc.cjs for why the assertions
+    # are warnings rather than a hard gate for now.
+    if: ${{ vars.NEXT_PUBLIC_API_BASE_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+        run: npm run build
+      - env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+        run: npm run lhci

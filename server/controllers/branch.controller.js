@@ -1,5 +1,9 @@
 import Branch from "../models/branch.model.js";
 import { triggerRevalidate } from "../utils/revalidate.js";
+import { getCached, invalidateCache } from "../utils/dataCache.js";
+
+const CACHE_KEY = "branches";
+const TTL_MS = 5 * 60 * 1000; // PRD FR-3: same 5 min window as the other data caches
 
 // ── Default seed data (runs once on first request if DB is empty) ─────────────
 const DEFAULTS = [
@@ -61,11 +65,16 @@ async function ensureDefaults() {
   }
 }
 
+async function loadBranches() {
+  await ensureDefaults();
+  return Branch.find().sort({ isHQ: -1, label: 1 }).lean();
+}
+
 // ── GET /api/branches  (public — Contact page reads this) ─────────────────────
 export const getAllBranches = async (req, res) => {
   try {
-    await ensureDefaults();
-    const branches = await Branch.find().sort({ isHQ: -1, label: 1 }).lean();
+    const branches = await getCached(CACHE_KEY, TTL_MS, loadBranches);
+    res.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
     res.json(branches);
   } catch (err) {
     console.error("getAllBranches:", err);
@@ -120,6 +129,7 @@ export const updateBranch = async (req, res) => {
 
     if (!branch) return res.status(404).json({ message: "Branch not found" });
     triggerRevalidate(["branches"]);
+    invalidateCache(CACHE_KEY);
     res.json({ message: "Branch updated successfully", branch });
   } catch (err) {
     console.error("updateBranch:", err);
@@ -169,6 +179,7 @@ export const createBranch = async (req, res) => {
     });
 
     triggerRevalidate(["branches"]);
+    invalidateCache(CACHE_KEY);
     res.status(201).json({ message: "Branch created", branch });
   } catch (err) {
     console.error("createBranch:", err);
@@ -188,6 +199,7 @@ export const deleteBranch = async (req, res) => {
 
     await Branch.deleteOne({ branchId: req.params.id });
     triggerRevalidate(["branches"]);
+    invalidateCache(CACHE_KEY);
     res.json({ message: "Branch deleted" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete branch" });
@@ -200,6 +212,7 @@ export const seedBranches = async (req, res) => {
     await Branch.deleteMany({});
     await Branch.insertMany(DEFAULTS);
     triggerRevalidate(["branches"]);
+    invalidateCache(CACHE_KEY);
     res.json({ message: "Branches re-seeded with defaults" });
   } catch (err) {
     res.status(500).json({ message: "Seed failed" });

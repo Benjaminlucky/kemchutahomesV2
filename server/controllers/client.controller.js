@@ -7,6 +7,7 @@ import Inspection from "../models/inspection.model.js";
 import { Buy2SellLead } from "../models/Buy2sell.model.js";
 import { sendEmail } from "../utils/notifications.js";
 import { issueAuthCookies } from "../utils/authTokens.js";
+import { getLockoutStatus, recordFailedLogin, recordSuccessfulLogin } from "../utils/loginLockout.js";
 
 const FRONTEND = () =>
   process.env.FRONTEND_URL || "https://kemchutahomesltd.com";
@@ -88,9 +89,19 @@ export const loginClient = async (req, res) => {
         .status(403)
         .json({ message: "Account is disabled. Contact support." });
 
+    const lockStatus = getLockoutStatus(client);
+    if (lockStatus.locked) {
+      return res.status(423).json({
+        message: `Too many failed attempts. Try again in ${lockStatus.minutesLeft} minute(s).`,
+      });
+    }
+
     const match = await bcrypt.compare(password, client.passwordHash);
-    if (!match)
+    if (!match) {
+      await recordFailedLogin(client);
       return res.status(401).json({ message: "Invalid email or password" });
+    }
+    await recordSuccessfulLogin(client);
 
     const token = signToken(client._id);
     await issueAuthCookies(res, { id: client._id, role: "client" });

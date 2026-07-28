@@ -1,0 +1,11 @@
+# Netlify build config for the Next.js 16 App Router app. Netlify's Next.js
+# Runtime auto-detects this and handles SSR/ISR/route handlers/edge
+# middleware as Functions/Edge Functions — no publish dir or SPA rewrite
+# needed here (unlike client-legacy/netlify.toml's catch-all, which does NOT
+# apply to this app and must not be copied over).
+
+[build]
+  command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

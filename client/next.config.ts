@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
         // Estate/gallery images are uploaded under a single Cloudinary
         // account — narrow this once the production cloud name is final.
       },
+      {
+        protocol: "https",
+        hostname: "ui-avatars.com",
+        // Fallback avatar generator for realtors without an uploaded photo.
+      },
     ],
   },
   async redirects() {

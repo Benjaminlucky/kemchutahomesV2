@@ -24,13 +24,14 @@ import "./config/env.js";
 import Sentry from "./utils/sentry.js";
 import mongoose from "mongoose";
 import { startScheduler } from "./utils/followup.js";
+import logger from "./utils/logger.js";
 
 async function start() {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log("✅ Worker connected to MongoDB");
+    logger.info("Worker connected to MongoDB");
   } catch (err) {
-    console.error("❌ Worker MongoDB connection error:", err.message);
+    logger.error({ err: err.message }, "Worker MongoDB connection error");
     Sentry.captureException(err, { tags: { phase: "worker-startup" } });
     await Sentry.flush(2000);
     process.exit(1);

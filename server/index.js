@@ -9,6 +9,8 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import compression from "compression";
 import mongoSanitize from "express-mongo-sanitize";
+import pinoHttp from "pino-http";
+import logger from "./utils/logger.js";
 
 // ── Route imports ──────────────────────────────────────────────────────────────
 import realtorRoutes from "./routes/realtor.routes.js";
@@ -42,6 +44,17 @@ app.use(helmet());
 
 // ── Compression ───────────────────────────────────────────────────────────────
 app.use(compression());
+
+// ── Structured request logging (PRD FR-6) ────────────────────────────────────
+// Registered early so even a request rejected by CORS or auth still gets
+// logged. /healthz is excluded — Railway/uptime monitors poll it frequently
+// enough that logging every hit would just be noise.
+app.use(
+  pinoHttp({
+    logger,
+    autoLogging: { ignore: (req) => req.url === "/healthz" },
+  }),
+);
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
@@ -117,7 +130,7 @@ Sentry.setupExpressErrorHandler(app);
 // ── Centralised error handler ────────────────────────────────────────────────
 // Must be registered last. Never leaks err.message/stack to clients.
 app.use((err, req, res, next) => {
-  console.error(err);
+  (req.log || logger).error({ err }, "Unhandled error");
   if (res.headersSent) return next(err);
   res.status(err.status || 500).json({ message: "Something went wrong." });
 });
@@ -128,26 +141,26 @@ async function start() {
   // never prevent the API from booting and serving everything else.
   cloudinary.api
     .ping()
-    .then((result) => console.log("Cloudinary:", result.status))
+    .then((result) => logger.info({ cloudinary: result.status }, "Cloudinary reachable"))
     .catch((err) =>
-      console.warn("Cloudinary unreachable at boot (non-fatal):", err.message),
+      logger.warn({ err: err.message }, "Cloudinary unreachable at boot (non-fatal)"),
     );
 
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log("✅ Connected to MongoDB");
+    logger.info("Connected to MongoDB");
     // Scheduled jobs run in a separate process — see worker.js — so a web
     // dyno restart or horizontal scale-out can no longer duplicate or drop
     // a cron run.
   } catch (err) {
-    console.error(
-      "MongoDB connection error (server will still start; /healthz will report degraded):",
-      err.message,
+    logger.error(
+      { err: err.message },
+      "MongoDB connection error (server will still start; /healthz will report degraded)",
     );
   }
 
   app.listen(process.env.PORT || 3000, () =>
-    console.log("Server is running on port", process.env.PORT || 3000),
+    logger.info({ port: process.env.PORT || 3000 }, "Server is running"),
   );
 }
 

@@ -3,6 +3,7 @@ import Admin from "../models/admin.js";
 import crypto from "crypto";
 import { sendAdminPasswordResetEmail } from "../utils/email.js";
 import { issueAuthCookies } from "../utils/authTokens.js";
+import { getLockoutStatus, recordFailedLogin, recordSuccessfulLogin } from "../utils/loginLockout.js";
 
 const generateToken = (user) =>
   jwt.sign(
@@ -45,9 +46,19 @@ export const loginAdmin = async (req, res) => {
     const admin = await Admin.findOne({ email });
     if (!admin) return res.status(400).json({ message: "Invalid credentials" });
 
+    const lockStatus = getLockoutStatus(admin);
+    if (lockStatus.locked) {
+      return res.status(423).json({
+        message: `Too many failed attempts. Try again in ${lockStatus.minutesLeft} minute(s).`,
+      });
+    }
+
     const isMatch = await admin.comparePassword(password);
-    if (!isMatch)
+    if (!isMatch) {
+      await recordFailedLogin(admin);
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+    await recordSuccessfulLogin(admin);
 
     const token = generateToken(admin);
     await issueAuthCookies(res, { id: admin._id, role: "admin" });

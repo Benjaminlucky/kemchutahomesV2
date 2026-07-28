@@ -15,6 +15,7 @@ import {
   Bot,
   BarChart3,
   Wallet,
+  Percent,
   Menu,
   X,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const ADMIN_NAV: NavItem[] = [
   { name: "Manage Inspections", path: "/dashboard/inspections", icon: CalendarCheck },
   { name: "Manage Subscriptions", path: "/dashboard/subscriptions", icon: ClipboardList },
   { name: "Buy2Sell", path: "/dashboard/buy2sell", icon: Landmark },
+  { name: "Commissions", path: "/dashboard/commissions", icon: Percent },
   { name: "Contact Info", path: "/dashboard/contact", icon: Contact },
   { name: "Bank Accounts", path: "/dashboard/bank-accounts", icon: CreditCard },
   { name: "AI Knowledge Base", path: "/dashboard/knowledge-base", icon: Bot },
