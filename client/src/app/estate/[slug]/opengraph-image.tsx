@@ -85,7 +85,12 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           height: "100%",
           display: "flex",
           position: "relative",
-          background: photo ? undefined : "linear-gradient(135deg, #3F0C91 0%, #700CEB 55%, #8A2FF0 100%)",
+          // `background: undefined` (rather than the key being absent) makes
+          // satori throw "Cannot read properties of undefined (reading
+          // 'toString')" — the actual cause of the 500s that broke every
+          // estate share thumbnail with a real photo. The conditional spread
+          // keeps the key out of the object entirely when there's a photo.
+          ...(!photo && { background: "linear-gradient(135deg, #3F0C91 0%, #700CEB 55%, #8A2FF0 100%)" }),
         }}
       >
         {photo && (
