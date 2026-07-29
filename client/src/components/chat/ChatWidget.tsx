@@ -408,7 +408,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
                 placeholder="Ask anything about our estates…"
                 rows={1}
                 maxLength={4000}
-                className="max-h-24 flex-1 resize-none rounded-xl border border-customBlack-100 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-customPurple-400"
+                className="max-h-24 flex-1 resize-none rounded-xl border border-customBlack-100 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-customPurple-400"
               />
               <button
                 onClick={() => send()}

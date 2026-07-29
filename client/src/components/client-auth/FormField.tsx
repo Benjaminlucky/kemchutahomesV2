@@ -19,8 +19,8 @@ export function FormField({
 }
 
 export function textInputClass(hasError?: string | boolean) {
-  return `w-full rounded-lg border px-4 py-3 text-sm outline-none transition-colors focus:ring-2 focus:ring-customPurple-500 ${
-    hasError ? "border-red-400 bg-red-50" : "border-gray-300"
+  return `w-full rounded-lg border px-4 py-3 text-sm text-gray-900 outline-none transition-colors focus:ring-2 focus:ring-customPurple-500 ${
+    hasError ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
   }`;
 }
 
