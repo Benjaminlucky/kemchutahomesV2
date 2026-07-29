@@ -193,8 +193,13 @@ export default async function Image({ params }: { params: Promise<{ slug: string
               >
                 Starting from
               </div>
+              {/* "NGN" rather than "₦" — the bundled OG-image font has no glyph
+                  for the Naira sign, and satori falls back to fetching a
+                  supplemental Google Font for it at request time, which is
+                  slow and fails outright in some serverless environments
+                  (this crashed the whole route with a 500 in production). */}
               <div style={{ display: "flex", fontSize: 56, fontWeight: 900, color: "#fff", letterSpacing: -1 }}>
-                ₦{estate.price}
+                NGN {estate.price}
               </div>
             </div>
             <div style={{ display: "flex", fontSize: 26, color: "rgba(255,255,255,0.6)", paddingBottom: 8 }}>

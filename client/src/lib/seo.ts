@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 export const SITE_NAME = "Kemchuta Homes Limited";
 export const SITE_URL = "https://kemchutahomesltd.com";
-export const DEFAULT_OG_IMAGE = "/assets/kemchutaMainLogo.svg";
 
 /**
  * Merges page-specific title/description into consistent site-wide
@@ -23,7 +22,6 @@ export function buildMetadata({
   ogImage?: string;
 }): Metadata {
   const url = `${SITE_URL}${path}`;
-  const image = ogImage ?? DEFAULT_OG_IMAGE;
   const isHome = path === "/";
   // The root layout already declares a `%s | Site Name` title template, so
   // `title` here is left as a plain string for Next to interpolate — except
@@ -44,7 +42,14 @@ export function buildMetadata({
       description,
       url,
       siteName: SITE_NAME,
-      images: [{ url: image }],
+      // `images` is only set here when a page explicitly supplies one. Left
+      // unset, Next.js falls back to the nearest opengraph-image.tsx
+      // file-convention route (the per-estate branded card, or the sitewide
+      // fallback) — which is a real raster PNG, unlike the old SVG default
+      // this used to hardcode here. Setting `images` unconditionally used to
+      // silently override that file-convention image on every page, which is
+      // why WhatsApp (and every other scraper) never rendered a thumbnail.
+      ...(ogImage && { images: [{ url: ogImage }] }),
       locale: "en_NG",
       type: "website",
     },
@@ -52,7 +57,7 @@ export function buildMetadata({
       card: "summary_large_image",
       title: fullTitle,
       description,
-      images: [image],
+      ...(ogImage && { images: [ogImage] }),
     },
   };
 }

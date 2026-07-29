@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildMetadata, SITE_NAME, SITE_URL, DEFAULT_OG_IMAGE } from "./seo";
+import { buildMetadata, SITE_NAME, SITE_URL } from "./seo";
 
 describe("buildMetadata", () => {
   it("uses an absolute title on the homepage instead of the site-name suffix", () => {
@@ -20,10 +20,10 @@ describe("buildMetadata", () => {
     expect(meta.openGraph?.url).toBe(`${SITE_URL}/contact`);
   });
 
-  it("falls back to the default OG image when none is supplied", () => {
+  it("omits explicit OG/Twitter images when none is supplied, so Next's opengraph-image file-convention route applies instead", () => {
     const meta = buildMetadata({ title: "Company", description: "d", path: "/company" });
-    expect(meta.openGraph?.images).toEqual([{ url: DEFAULT_OG_IMAGE }]);
-    expect(meta.twitter?.images).toEqual([DEFAULT_OG_IMAGE]);
+    expect(meta.openGraph?.images).toBeUndefined();
+    expect(meta.twitter?.images).toBeUndefined();
   });
 
   it("uses a per-estate OG image when supplied", () => {
