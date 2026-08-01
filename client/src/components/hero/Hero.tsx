@@ -29,9 +29,15 @@ export default function Hero({ estates }: { estates: Estate[] }) {
   return (
     <motion.div
       className="hero__wrapper relative w-full"
-      initial={{ opacity: 0 }}
+      // The LCP element lives inside this wrapper — animating it in from
+      // opacity:0 gates the browser's first paint of that content behind
+      // JS hydration, which is exactly what tanked LCP (measured 14.3s
+      // "Render Delay" in Lighthouse). initial={false} skips the entrance
+      // transition on mount so it renders visible immediately; nothing else
+      // ever remounts this wrapper, so there's no repeat-visit case where a
+      // reveal animation would have been wanted anyway.
+      initial={false}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
       style={{ overflow: "hidden" }}
     >
       <HeroCarousel estates={estates} realIndex={realIndex} setRealIndex={setRealIndex} prevRef={prevRef} nextRef={nextRef} />

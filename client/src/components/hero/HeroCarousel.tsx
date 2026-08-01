@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useSyncExternalStore, type RefObject } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -23,7 +23,28 @@ const PURPOSE_COLORS: Record<string, { color: string; border: string }> = {
   Investment: { color: "#34d399", border: "rgba(52,211,153,0.35)" },
 };
 
-function SlideOverlay({ estate, active }: { estate: Estate; active: boolean }) {
+// useSyncExternalStore, not useState+useEffect — there's nothing to
+// subscribe to, this just needs the server/client snapshots to differ so
+// React re-renders once hydration commits, without the setState-in-effect
+// render cascade ESLint (react-hooks/set-state-in-effect) flags.
+const noopSubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
+function SlideOverlay({
+  estate,
+  active,
+  skipEntranceAnimation,
+}: {
+  estate: Estate;
+  active: boolean;
+  // True only until the carousel's first client-side render has committed —
+  // this slide's overlay (including the LCP <h1>) must be visible in the
+  // very first paint, not faded in after hydration. Every later activation
+  // (slide change, or looping back to this same slide) still animates in
+  // normally.
+  skipEntranceAnimation: boolean;
+}) {
   const ps = PURPOSE_COLORS[estate.purpose] || PURPOSE_COLORS.Residential;
 
   return (
@@ -31,7 +52,7 @@ function SlideOverlay({ estate, active }: { estate: Estate; active: boolean }) {
       {active && (
         <motion.div
           key={estate._id}
-          initial={{ opacity: 0, y: 24 }}
+          initial={skipEntranceAnimation ? false : { opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
@@ -183,6 +204,11 @@ type HeroCarouselProps = {
 };
 
 export default function HeroCarousel({ estates, realIndex, setRealIndex, prevRef, nextRef }: HeroCarouselProps) {
+  // False on the server and on the first client render (matching, so no
+  // hydration mismatch), true from the next render onward — see
+  // SlideOverlay's skipEntranceAnimation prop.
+  const hasMounted = useSyncExternalStore(noopSubscribe, getClientSnapshot, getServerSnapshot);
+
   return (
     <Swiper
       modules={[Navigation, Pagination, Autoplay, EffectFade]}
@@ -236,7 +262,7 @@ export default function HeroCarousel({ estates, realIndex, setRealIndex, prevRef
               }}
             />
 
-            <SlideOverlay estate={estate} active={realIndex === index} />
+            <SlideOverlay estate={estate} active={realIndex === index} skipEntranceAnimation={!hasMounted} />
           </div>
         </SwiperSlide>
       ))}

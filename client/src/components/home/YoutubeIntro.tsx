@@ -1,12 +1,21 @@
 "use client";
 
 import { useRef } from "react";
+import ReactDOM from "react-dom";
 import { motion, useInView } from "framer-motion";
 
 const PURPLE = "#700CEB";
 const PURPLE_DARK = "#3F0C91";
 
 export default function YoutubeIntro() {
+  // Lighthouse flagged ~340ms of missing preconnect savings for this
+  // embed's origins — youtube.com and google.com are the two Google
+  // itself recommends preconnecting to for YouTube embeds (the rest of
+  // the flagged origins are downstream ad-tech the player pulls in on
+  // its own; preconnecting to ad infrastructure isn't standard practice).
+  ReactDOM.preconnect("https://www.youtube.com");
+  ReactDOM.preconnect("https://www.google.com");
+
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, amount: 0.1 });
 
