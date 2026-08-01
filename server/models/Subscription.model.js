@@ -74,6 +74,14 @@ export const STATUSES = [
   "rejected",
 ];
 
+// Dashboard-level "approved" grouping — an admin has signed off and the
+// deal is locked in. There is no literal "approved" status above; this is
+// the single source of truth for what counts as one, consumed by both the
+// admin analytics endpoint (analytics.controller.js) and the client
+// portal's own dashboard stats (client.controller.js) so they can't drift
+// out of sync with each other or with STATUSES.
+export const APPROVED_STATUSES = ["confirmed", "completed", "allocated"];
+
 // ── Main subscription schema ───────────────────────────────────────────────────
 const subscriptionSchema = new mongoose.Schema(
   {

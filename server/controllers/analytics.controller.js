@@ -1,7 +1,32 @@
 import Realtor from "../models/realtor.model.js";
-import Subscription from "../models/Subscription.model.js";
+import Subscription, { APPROVED_STATUSES } from "../models/Subscription.model.js";
 import Inspection from "../models/inspection.model.js";
 import Estate from "../models/estate.model.js";
+
+// ── Status → dashboard bucket ────────────────────────────────────────────────
+// Subscription.model.js's real STATUSES enum (see that file) is 13 granular
+// payment/allocation states with no literal "pending"/"reviewed"/"approved"/
+// "rejected" — those four are a coarser, dashboard-only grouping. Every real
+// status must map to exactly one bucket, or subscriptions.total (the sum of
+// all four buckets below) silently undercounts. The "approved" entries come
+// from the model's own APPROVED_STATUSES so this can't drift out of sync
+// with it or with client.controller.js's client-portal stats, which use the
+// same constant.
+const STATUS_BUCKET = {
+  pending: "pending",
+  rejected: "rejected",
+  // In progress toward approval — some payment made, not yet confirmed/
+  // completed/allocated by an admin.
+  outright_paid: "reviewed",
+  partial_paid: "reviewed",
+  inst_1_paid: "reviewed",
+  inst_2_paid: "reviewed",
+  inst_3_paid: "reviewed",
+  inst_4_paid: "reviewed",
+  inst_5_paid: "reviewed",
+  inst_6_paid: "reviewed",
+  ...Object.fromEntries(APPROVED_STATUSES.map((status) => [status, "approved"])),
+};
 
 /**
  * GET /api/admin/analytics
@@ -58,9 +83,10 @@ export const getAnalytics = async (req, res) => {
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
 
-      // Revenue — sum totalAmount for approved subscriptions
+      // Revenue — sum totalAmount for "approved" subscriptions, per the
+      // model's APPROVED_STATUSES (imported above).
       Subscription.aggregate([
-        { $match: { status: "approved" } },
+        { $match: { status: { $in: APPROVED_STATUSES } } },
         {
           $group: {
             _id: null,
@@ -150,9 +176,15 @@ export const getAnalytics = async (req, res) => {
     ]);
 
     // ── Shape subscription status map ────────────────────────────────────────
+    // Bucket (not overwrite) — several real statuses fold into "reviewed",
+    // and three fold into "approved" (see STATUS_BUCKET above). Falls back to
+    // "reviewed" for any status this map doesn't know about, so an
+    // unrecognised future status still counts toward the total instead of
+    // silently vanishing from it.
     const subStatus = { pending: 0, reviewed: 0, approved: 0, rejected: 0 };
     subStatusCounts.forEach(({ _id, count }) => {
-      if (_id in subStatus) subStatus[_id] = count;
+      const bucket = STATUS_BUCKET[_id] ?? "reviewed";
+      subStatus[bucket] += count;
     });
     const totalSubs = Object.values(subStatus).reduce((a, b) => a + b, 0);
 

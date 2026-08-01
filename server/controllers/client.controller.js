@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import Client from "../models/client.model.js";
-import Subscription from "../models/Subscription.model.js";
+import Subscription, { APPROVED_STATUSES } from "../models/Subscription.model.js";
 import Inspection from "../models/inspection.model.js";
 import { Buy2SellLead } from "../models/Buy2sell.model.js";
 import { sendEmail } from "../utils/notifications.js";
@@ -183,7 +183,7 @@ export const getClientDashboard = async (req, res) => {
       // Land subscription stats
       totalSubscriptions: subscriptions.length,
       approvedSubscriptions: subscriptions.filter((s) =>
-        ["confirmed", "allocated", "active"].includes(s.status),
+        APPROVED_STATUSES.includes(s.status),
       ).length,
       pendingSubscriptions: subscriptions.filter((s) => s.status === "pending")
         .length,
