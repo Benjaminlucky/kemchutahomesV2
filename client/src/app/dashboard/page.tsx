@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import AdminOverview from "@/components/dashboard/AdminOverview";
 import RealtorOverview from "@/components/dashboard/RealtorOverview";
+import type { Analytics } from "@/components/dashboard/overview/types";
 
 type CurrentUser = { role: "admin" | "realtor"; email: string };
 
@@ -27,11 +28,14 @@ export default async function DashboardPage() {
       headers: { Cookie: cookieHeader },
       cache: "no-store",
     });
-    const analytics = res.ok ? await res.json() : null;
+    const analytics: Analytics | null = res.ok ? await res.json() : null;
 
     return (
       <div>
-        <h1 className="mb-8 text-3xl font-bold text-customBlack-900">Admin Overview</h1>
+        <h1 className="mb-1 text-2xl font-bold text-customBlack-900 sm:text-3xl">Admin Overview</h1>
+        <p className="mb-7 text-sm text-customBlack-400">
+          Network, revenue and pipeline health across Kemchuta Homes.
+        </p>
         {analytics ? (
           <AdminOverview analytics={analytics} />
         ) : (
