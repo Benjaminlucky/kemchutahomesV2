@@ -18,7 +18,6 @@ import Contact from "./pages/contact/Contact";
 import EstateDetails from "./pages/EstateDetails";
 import Signup from "./pages/signup/Signup";
 import Login from "./pages/login/Login";
-import AdminSignup from "./pages/admin/AdminSignup";
 import AdminLogin from "./pages/admin/AdminLogin";
 import Dashboard from "./pages/dashboard";
 
@@ -75,7 +74,6 @@ function AppWrapper() {
           <Route path="/buy2sell" element={<Buy2SellPage />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/admin/signup" element={<AdminSignup />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />

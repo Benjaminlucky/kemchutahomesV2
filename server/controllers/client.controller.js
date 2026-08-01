@@ -248,9 +248,10 @@ export const forgotPassword = async (req, res) => {
       });
 
     const token = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
     const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await Client.findByIdAndUpdate(client._id, {
-      resetPasswordToken: token,
+      resetPasswordToken: hashedToken,
       resetPasswordExpiry: expiry,
     });
 
@@ -281,8 +282,9 @@ export const resetPassword = async (req, res) => {
         .status(400)
         .json({ message: "Password must be at least 8 characters" });
 
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
     const client = await Client.findOne({
-      resetPasswordToken: token,
+      resetPasswordToken: hashedToken,
       resetPasswordExpiry: { $gt: new Date() },
     });
     if (!client)
@@ -291,10 +293,12 @@ export const resetPassword = async (req, res) => {
         .json({ message: "Invalid or expired reset token" });
 
     const passwordHash = await bcrypt.hash(password, 12);
+    // findByIdAndUpdate silently drops keys whose value is `undefined` —
+    // the Mongo driver never sends them, so the field is never actually
+    // unset. Use $unset explicitly so the token can't be replayed.
     await Client.findByIdAndUpdate(client._id, {
-      passwordHash,
-      resetPasswordToken: undefined,
-      resetPasswordExpiry: undefined,
+      $set: { passwordHash },
+      $unset: { resetPasswordToken: "", resetPasswordExpiry: "" },
     });
     res.json({ message: "Password reset successfully" });
   } catch (err) {

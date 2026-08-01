@@ -323,6 +323,7 @@ export const getRealtors = async (req, res) => {
 
     const total = await Realtor.countDocuments(filter);
     const realtors = await Realtor.find(filter)
+      .select("-passwordHash")
       .sort("-createdAt")
       .skip((page - 1) * limit)
       .limit(limit)
