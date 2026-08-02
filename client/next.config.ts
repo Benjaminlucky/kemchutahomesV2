@@ -27,6 +27,13 @@ const nextConfig: NextConfig = {
         hostname: "ui-avatars.com",
         // Fallback avatar generator for realtors without an uploaded photo.
       },
+      {
+        protocol: "https",
+        hostname: "i.ytimg.com",
+        // Static thumbnail for the homepage's YouTube facade
+        // (components/home/YoutubeIntro.tsx) — the real embed only mounts
+        // on click, so this is the only YouTube-hosted asset loaded eagerly.
+      },
     ],
   },
   async redirects() {

@@ -1,23 +1,36 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import Image from "next/image";
 import ReactDOM from "react-dom";
 import { motion, useInView } from "framer-motion";
+import { Play } from "lucide-react";
 
 const PURPLE = "#700CEB";
 const PURPLE_DARK = "#3F0C91";
+const VIDEO_ID = "KUeJusSc-8I";
 
-export default function YoutubeIntro() {
-  // Lighthouse flagged ~340ms of missing preconnect savings for this
-  // embed's origins — youtube.com and google.com are the two Google
-  // itself recommends preconnecting to for YouTube embeds (the rest of
-  // the flagged origins are downstream ad-tech the player pulls in on
-  // its own; preconnecting to ad infrastructure isn't standard practice).
+// Preconnecting to these two origins costs a DNS/TCP/TLS handshake, not
+// real bandwidth — safe to fire eagerly on hover/focus intent, well before
+// the click that actually loads the (~800KB of JS) embed itself.
+function preconnectYoutube() {
   ReactDOM.preconnect("https://www.youtube.com");
   ReactDOM.preconnect("https://www.google.com");
+}
 
+export default function YoutubeIntro() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, amount: 0.1 });
+  // The real <iframe> only mounts after a click. Lighthouse's trace on
+  // production showed this section's raw embed loading its full player
+  // bundle (~800KB of JS across three chunks, plus YouTube's own CSS/ad-
+  // tech requests) during the initial page load — `loading="lazy"` alone
+  // didn't stop it, since this section sits close enough to the top of the
+  // page to fall inside the browser's lazy-load trigger distance even on a
+  // cold, unscrolled load. A click-to-load facade (Google's own recommended
+  // pattern for exactly this) means the only YouTube-hosted request before
+  // an actual click is a single small thumbnail image.
+  const [isPlaying, setIsPlaying] = useState(false);
 
   return (
     <section
@@ -119,23 +132,76 @@ export default function YoutubeIntro() {
           />
 
           <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden" }}>
-            <iframe
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                border: "none",
-                display: "block",
-              }}
-              src="https://www.youtube.com/embed/KUeJusSc-8I?si=WER0lrTN-VQtEA2Z&controls=1&rel=0&showinfo=0"
-              title="Kemchuta Homes — Building Futures"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-              loading="lazy"
-            />
+            {isPlaying ? (
+              <iframe
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  display: "block",
+                }}
+                src={`https://www.youtube.com/embed/${VIDEO_ID}?si=WER0lrTN-VQtEA2Z&controls=1&rel=0&showinfo=0&autoplay=1`}
+                title="Kemchuta Homes — Building Futures"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsPlaying(true)}
+                onPointerEnter={preconnectYoutube}
+                onFocus={preconnectYoutube}
+                aria-label="Play video: Kemchuta Homes — Building Futures"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  padding: 0,
+                  margin: 0,
+                  cursor: "pointer",
+                  background: "none",
+                }}
+              >
+                <Image
+                  src={`https://i.ytimg.com/vi/${VIDEO_ID}/sddefault.jpg`}
+                  alt="Kemchuta Homes — Building Futures video thumbnail"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 900px"
+                  style={{ objectFit: "cover" }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(5,0,15,0.35)",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 76,
+                      height: 76,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: `linear-gradient(135deg, ${PURPLE_DARK}, ${PURPLE})`,
+                      boxShadow: "0 8px 32px rgba(112,12,235,0.5)",
+                    }}
+                  >
+                    <Play size={30} color="#fff" fill="#fff" style={{ marginLeft: 4 }} />
+                  </span>
+                </span>
+              </button>
+            )}
           </div>
         </motion.div>
 
