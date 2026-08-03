@@ -30,6 +30,15 @@ export const realtorResetPasswordSchema = z.object({
   password,
 });
 
+// Query gate for GET /api/realtors/export (admin). `field` names the column
+// that gets projected straight into a Mongoose .select(), so it must be an
+// exact enum member — never a caller-supplied string — or the endpoint turns
+// into an arbitrary field reader (passwordHash, resetPasswordToken, …).
+export const realtorExportQuerySchema = z.object({
+  field: z.enum(["email", "phone"], { error: "field must be 'email' or 'phone'" }),
+  search: z.string().max(100).optional(),
+});
+
 // Whitelist for PUT /api/realtors/:id (admin). The legacy dashboard spreads
 // the full fetched realtor doc into its edit-form state and sends it back
 // wholesale, but only ever mutates these fields — everything else (passwordHash,

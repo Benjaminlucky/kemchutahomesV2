@@ -25,6 +25,13 @@ export function mockRes() {
   };
 }
 
-export function mockReq({ cookies = {}, headers = {}, method = "GET", body = {}, params = {} } = {}) {
-  return { cookies, headers, method, body, params };
+export function mockReq({
+  cookies = {},
+  headers = {},
+  method = "GET",
+  body = {},
+  params = {},
+  query = {},
+} = {}) {
+  return { cookies, headers, method, body, params, query };
 }

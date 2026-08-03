@@ -303,23 +303,30 @@ export const updateAvatar = async (req, res) => {
    ADMIN — REALTOR MANAGEMENT
 ──────────────────────────────────────────────────────────────────────────── */
 
+// Shared by the paginated list and the export endpoint so the two can never
+// drift: whatever an admin sees in the table is exactly what an export of the
+// same search returns. Regex-escaped (see utils/escapeRegex.js) and length
+// capped — the raw value goes into a $regex.
+export const buildRealtorSearchFilter = (search) => {
+  if (!search) return {};
+  const safeSearch = escapeRegex(String(search).slice(0, 100));
+  return {
+    $or: [
+      { firstName: { $regex: safeSearch, $options: "i" } },
+      { lastName: { $regex: safeSearch, $options: "i" } },
+      { email: { $regex: safeSearch, $options: "i" } },
+      { referralCode: { $regex: safeSearch, $options: "i" } },
+    ],
+  };
+};
+
 export const getRealtors = async (req, res) => {
   try {
     const page = Math.max(+req.query.page || 1, 1);
     const limit = Math.min(+req.query.limit || 10, 100);
     const search = req.query.search || "";
 
-    const safeSearch = escapeRegex(String(search).slice(0, 100));
-    const filter = search
-      ? {
-          $or: [
-            { firstName: { $regex: safeSearch, $options: "i" } },
-            { lastName: { $regex: safeSearch, $options: "i" } },
-            { email: { $regex: safeSearch, $options: "i" } },
-            { referralCode: { $regex: safeSearch, $options: "i" } },
-          ],
-        }
-      : {};
+    const filter = buildRealtorSearchFilter(search);
 
     const total = await Realtor.countDocuments(filter);
     const realtors = await Realtor.find(filter)
@@ -342,6 +349,43 @@ export const getRealtors = async (req, res) => {
   } catch (err) {
     console.error("GET REALTORS ERROR:", err);
     return res.status(500).json({ message: "Failed to fetch realtors" });
+  }
+};
+
+// Exports one contact column for EVERY realtor matching the current search,
+// not just the page the admin happens to be looking at — the dashboard's
+// "Export Emails/Phones" buttons used to copy only the 10 loaded rows.
+// Deliberately projects a single field (never a whole document) so this can
+// never become another passwordHash leak.
+const EXPORTABLE_FIELDS = ["email", "phone"];
+
+export const exportRealtors = async (req, res) => {
+  try {
+    const { field } = req.query;
+    // routes/realtor.routes.js already gates this with realtorExportQuerySchema;
+    // repeated here so the projection is safe even if the controller is ever
+    // mounted or called without that middleware.
+    if (!EXPORTABLE_FIELDS.includes(field)) {
+      return res
+        .status(400)
+        .json({ message: "field must be 'email' or 'phone'" });
+    }
+
+    const filter = buildRealtorSearchFilter(req.query.search || "");
+    const docs = await Realtor.find(filter)
+      .select(`${field} -_id`)
+      .sort("-createdAt")
+      .lean();
+
+    const values = docs
+      .map((doc) => doc[field])
+      .filter((value) => typeof value === "string" && value.trim() !== "")
+      .map((value) => value.trim());
+
+    return res.json({ values, total: values.length });
+  } catch (err) {
+    console.error("EXPORT REALTORS ERROR:", err);
+    return res.status(500).json({ message: "Failed to export realtors" });
   }
 };
 

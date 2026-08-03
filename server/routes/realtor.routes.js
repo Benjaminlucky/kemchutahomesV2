@@ -4,6 +4,7 @@ import {
   login,
   updateAvatar,
   getRealtors,
+  exportRealtors,
   getRealtorById,
   updateRealtor,
   deleteRealtor,
@@ -23,6 +24,7 @@ import {
   realtorForgotPasswordSchema,
   realtorResetPasswordSchema,
   updateRealtorSchema,
+  realtorExportQuerySchema,
 } from "../schemas/realtor.schema.js";
 
 const router = express.Router();
@@ -46,6 +48,15 @@ router.post(
   authLimiter,
   validate(realtorResetPasswordSchema),
   resetPassword,
+);
+
+// ✅ Admin-only, but declared up here with the other specific routes: mounted
+// below /:id, Express would match "export" as a realtor id.
+router.get(
+  "/export",
+  protectAdmin,
+  validate(realtorExportQuerySchema, "query"),
+  exportRealtors,
 );
 
 // ✅ Admin routes (parameterized routes LAST)

@@ -18,10 +18,12 @@ const RealtorSchema = new mongoose.Schema({
   accountNumber: { type: String },
   passwordHash: { type: String, required: true },
 
-  avatar: {
-    type: String,
-    default: "https://ui-avatars.com/api/?name=Realtor",
-  },
+  // No default: a missing avatar means "no uploaded photo", and the UI renders
+  // a native initials fallback for that case (client Avatar component). The old
+  // default baked a third-party ui-avatars.com URL — with a hardcoded "Realtor"
+  // name — into every document. Existing docs still holding that URL are
+  // treated as "no photo" by the same client-side check, so no migration.
+  avatar: { type: String },
 
   referralCode: { type: String, required: true, unique: true },
 

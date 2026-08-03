@@ -47,3 +47,42 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
 }
+
+/*
+ * Entrance animation for lists of real content (e.g. the responsive realtor
+ * cards).
+ *
+ * Two deliberate choices, both learned the hard way in the browser:
+ *
+ * 1. CSS, not framer-motion. framer-motion drives its values from
+ *    requestAnimationFrame, which never fires while a document is hidden — a
+ *    background tab or a minimized window — so cards starting at opacity:0
+ *    stayed permanently invisible.
+ *
+ * 2. Transform only — no opacity. A hidden document also leaves a CSS
+ *    animation pending, and `backwards` fill then holds the *first* keyframe,
+ *    so animating opacity from 0 reproduces the exact same invisible-content
+ *    bug. Animating only translateY means the worst case is a card sitting
+ *    8px low: still fully readable.
+ *
+ * The rule behind both: never make real data visible only as a side effect of
+ * an animation completing.
+ */
+@keyframes enter-rise {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-enter-rise {
+  animation: enter-rise 0.28s ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-enter-rise {
+    animation: none;
+  }
+}
