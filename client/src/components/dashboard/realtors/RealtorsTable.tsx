@@ -7,6 +7,7 @@ import {
   Edit2,
   Trash2,
   Download,
+  Copy,
   ExternalLink,
   Search,
   X,
@@ -41,6 +42,10 @@ type ExportField = keyof typeof EXPORT_LABELS;
 
 function fullName(realtor: Pick<Realtor, "firstName" | "lastName" | "name">) {
   return [realtor.firstName, realtor.lastName].filter(Boolean).join(" ").trim() || realtor.name || "-";
+}
+
+function referralLink(referralCode: string) {
+  return `https://kemchutahomesltd.com/signup?ref=${referralCode}`;
 }
 
 async function fetchRealtors(page: number, limit: number, search: string): Promise<RealtorListResponse> {
@@ -135,6 +140,15 @@ export default function RealtorsTable({
     } catch {
       setActionError("Failed to fetch realtor details");
     }
+  }
+
+  async function copyReferralLink(link: string) {
+    setActionError(null);
+    if (!(await copyToClipboard(link))) {
+      setActionError("The browser blocked clipboard access. Check the page has focus and try again.");
+      return;
+    }
+    setToast("Referral link copied to clipboard!");
   }
 
   const editMutation = useDashboardMutation<unknown, { id: string; body: RealtorUpdateInput }>({
@@ -437,18 +451,28 @@ export default function RealtorsTable({
                 <ExternalLink size={16} className="text-customPurple-600" />
                 Referral Link
               </label>
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  readOnly
-                  value={`https://kemchutahomesltd.com/signup?ref=${viewRealtor.referralCode}`}
-                  // bg-white/text-gray-900 are explicit: an input with no text
-                  // colour inherits body's --foreground, which flips to
-                  // near-white under prefers-color-scheme: dark while this
-                  // panel stays light — the invisible-input bug again.
-                  className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 font-mono text-sm text-gray-900"
-                />
+              <div className="mt-3 flex items-start gap-2">
+                {/* A single-line <input> scrolls its overflow out of sight with
+                    no visible scrollbar, so on a narrow screen (or with a long
+                    referral code) the admin simply cannot see the whole link.
+                    A wrapping block with break-all always shows all of it, the
+                    same reasoning as the email field in CardField below.
+                    text-gray-900 is explicit: inheriting body's --foreground
+                    flips this to near-white under prefers-color-scheme: dark
+                    while the panel stays light — the invisible-text bug again. */}
+                <p className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 font-mono text-sm break-all text-gray-900">
+                  {referralLink(viewRealtor.referralCode)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => copyReferralLink(referralLink(viewRealtor.referralCode))}
+                  aria-label="Copy referral link"
+                  className="shrink-0 rounded-lg border border-gray-300 bg-white p-3 text-customPurple-600 shadow-sm transition-colors hover:bg-customPurple-50"
+                >
+                  <Copy size={20} />
+                </button>
                 <a
-                  href={`https://kemchutahomesltd.com/signup?ref=${viewRealtor.referralCode}`}
+                  href={referralLink(viewRealtor.referralCode)}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Open referral link in a new tab"
