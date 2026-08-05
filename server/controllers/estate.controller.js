@@ -1,3 +1,4 @@
+import { isValidObjectId } from "mongoose";
 import Estate from "../models/estate.model.js";
 import EstateTombstone from "../models/estateTombstone.model.js";
 import {
@@ -30,6 +31,19 @@ const generateUniqueSlug = async (name, excludeId = null) => {
     slug = `${base}-${counter++}`;
   }
   return slug;
+};
+
+// ── :id guard ────────────────────────────────────────────────────────────────
+// Mongoose casts :id at query time, so a malformed one ("not-an-objectid")
+// throws a CastError *inside* the handler — which the generic catch blocks
+// below then report as a 500 "Failed to …". That's a server error for what is
+// plainly bad client input, and it hides real 500s in the logs. Every handler
+// reading req.params.id calls this first and answers an honest 400 instead.
+// Returns true when it has already sent the response.
+const rejectedInvalidId = (req, res) => {
+  if (isValidObjectId(req.params.id)) return false;
+  res.status(400).json({ message: "Invalid estate ID" });
+  return true;
 };
 
 // ── Parse videos input ───────────────────────────────────────────────────────
@@ -124,6 +138,7 @@ export const getEstateBySlug = async (req, res) => {
 
 // ── GET /api/estates/id/:id ──────────────────────────────────────────────────
 export const getEstateById = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const estate = await Estate.findById(req.params.id).lean();
     if (!estate) return res.status(404).json({ message: "Estate not found" });
@@ -206,6 +221,7 @@ export const createEstate = async (req, res) => {
 
 // ── PUT /api/estates/:id ─────────────────────────────────────────────────────
 export const updateEstate = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   const newlyUploaded = [];
 
   try {
@@ -297,6 +313,7 @@ export const updateEstate = async (req, res) => {
 
 // ── DELETE /api/estates/:id ──────────────────────────────────────────────────
 export const deleteEstate = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const estate = await Estate.findById(req.params.id);
     if (!estate) return res.status(404).json({ message: "Estate not found" });
@@ -363,6 +380,7 @@ export const getEstateRedirect = async (req, res) => {
 
 // ── DELETE gallery image  /api/estates/:id/gallery/:publicId ─────────────────
 export const deleteGalleryImage = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const estate = await Estate.findById(req.params.id);
     if (!estate) return res.status(404).json({ message: "Estate not found" });
@@ -384,6 +402,7 @@ export const deleteGalleryImage = async (req, res) => {
 
 // ── PATCH /api/estates/:id/toggle ────────────────────────────────────────────
 export const toggleEstateStatus = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const estate = await Estate.findById(req.params.id);
     if (!estate) return res.status(404).json({ message: "Estate not found" });

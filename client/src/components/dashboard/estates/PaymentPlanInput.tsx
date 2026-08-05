@@ -4,6 +4,14 @@ import { Plus, Trash2 } from "lucide-react";
 
 export type PaymentPlanRow = { plot: string; outright: string; initialDeposit: string };
 
+// text-gray-900 is explicit, not inherited: the page body sets its color from
+// --foreground, which flips to near-white under prefers-color-scheme: dark
+// while these inputs keep their light background — the invisible-text bug this
+// codebase has now hit in several places. Matches textInputClass() in
+// components/client-auth/FormField.tsx, the reference styling for this form.
+const planInputClass =
+  "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-customPurple-500";
+
 export default function PaymentPlanInput({
   rows,
   onChange,
@@ -20,30 +28,33 @@ export default function PaymentPlanInput({
       <label className="mb-2 block text-sm font-medium text-gray-700">Payment plans</label>
       <div className="space-y-3">
         {rows.map((row, i) => (
-          <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border border-gray-200 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+          <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
             <input
               value={row.plot}
               onChange={(e) => update(i, "plot", e.target.value)}
               placeholder="Plot size (e.g. 500sqm)"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-customPurple-500"
+              aria-label={`Payment plan ${i + 1} plot size`}
+              className={planInputClass}
             />
             <input
               value={row.outright}
               onChange={(e) => update(i, "outright", e.target.value)}
               placeholder="Outright price"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-customPurple-500"
+              aria-label={`Payment plan ${i + 1} outright price`}
+              className={planInputClass}
             />
             <input
               value={row.initialDeposit}
               onChange={(e) => update(i, "initialDeposit", e.target.value)}
               placeholder="Initial deposit"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-customPurple-500"
+              aria-label={`Payment plan ${i + 1} initial deposit`}
+              className={planInputClass}
             />
             <button
               type="button"
               onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
               aria-label="Remove payment plan"
-              className="flex items-center justify-center rounded-lg px-3 text-red-500 hover:bg-red-50"
+              className="flex items-center justify-center rounded-lg px-3 py-2 text-red-500 transition-colors hover:bg-red-50"
             >
               <Trash2 size={15} />
             </button>

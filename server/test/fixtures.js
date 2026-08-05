@@ -2,6 +2,7 @@
 // required fields, so tests only need to override what's relevant to them.
 import Subscription from "../models/Subscription.model.js";
 import Realtor from "../models/realtor.model.js";
+import Estate from "../models/estate.model.js";
 
 let counter = 0;
 function uniqueSuffix() {
@@ -19,6 +20,24 @@ export async function makeRealtor(overrides = {}) {
     birthDate: new Date("1990-01-01"),
     passwordHash: "not-a-real-hash",
     referralCode: `REF-${suffix}`,
+    ...overrides,
+  });
+}
+
+export async function makeEstate(overrides = {}) {
+  const suffix = uniqueSuffix();
+  return Estate.create({
+    estate: `Test Estate ${suffix}`,
+    address: "1 Test Avenue, Lekki",
+    location: "Lagos",
+    purpose: "Residential",
+    title: "CofO",
+    price: "5,000,000",
+    sqm: "500sqm",
+    desc: "A test estate.",
+    // No upload happens in tests — these only need to satisfy `required`.
+    img: `https://res.cloudinary.com/test/image/upload/${suffix}.jpg`,
+    imgPublicId: `estates/featured/${suffix}`,
     ...overrides,
   });
 }

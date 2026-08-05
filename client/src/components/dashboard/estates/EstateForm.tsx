@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { X, Upload } from "lucide-react";
 import { FormField, textInputClass, SubmitButton } from "@/components/client-auth/FormField";
+import { Button } from "@/components/ui/Button";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import TagListInput from "./TagListInput";
 import PaymentPlanInput, { type PaymentPlanRow } from "./PaymentPlanInput";
 import { dashboardFetch } from "@/lib/dashboardFetch";
@@ -15,9 +17,33 @@ const PURPOSES = ["Residential", "Commercial", "Investment"] as const;
 const TITLES = ["CofO", "Gazette", "Excision", "Freehold", "Registered survey", "CofO in-view"] as const;
 const CATEGORIES = ["Land", "House", "Duplex", "Flat", "Commercial"] as const;
 
-const selectClass = "w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-customPurple-500";
+// bg-white + text-gray-900 are explicit rather than inherited: body's color
+// comes from --foreground, which flips to near-white under
+// prefers-color-scheme: dark while the control keeps its light background,
+// making the selected option invisible. Same fix, same reason, as
+// textInputClass() in components/client-auth/FormField.tsx.
+const selectClass =
+  "w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-colors focus:ring-2 focus:ring-customPurple-500";
 
-export default function EstateForm({ estate }: { estate?: Estate }) {
+const sectionClass = "space-y-5 rounded-2xl border border-customBlack-100 bg-customBlack-50/40 p-5";
+
+/**
+ * Create/edit form for an estate. Hosted inside a Modal from EstatesTable —
+ * it no longer navigates on success (there is nowhere to navigate to), so the
+ * parent supplies onSuccess to close the modal and onCancel for the dismiss
+ * button. router.refresh() is still fired here because the estate list is a
+ * Server Component: refreshing re-runs its fetch and hands EstatesTable a new
+ * initialEstates prop.
+ */
+export default function EstateForm({
+  estate,
+  onSuccess,
+  onCancel,
+}: {
+  estate?: Estate;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const isEdit = Boolean(estate);
 
@@ -46,6 +72,14 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // The form is long enough to scroll inside the modal and the submit button is
+  // pinned to the bottom, so an error rendered at the top would otherwise land
+  // entirely off-screen — the admin would see the button do nothing.
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (error) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [error]);
+
   async function removeExistingGalleryImage(publicId: string) {
     if (!estate) return; // shouldn't happen — only rendered for existing estates
     setRemovingPublicId(publicId);
@@ -56,7 +90,9 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
       if (!res.ok) throw new Error((await res.json()).message || "Failed to remove image");
       setKeptGallery((prev) => prev.filter((g) => g.publicId !== publicId));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to remove image");
+      // Reported in the form's own error banner rather than alert(): inside a
+      // modal a native dialog steals focus from the form behind it.
+      setError(err instanceof Error ? err.message : "Failed to remove image");
     } finally {
       setRemovingPublicId(null);
     }
@@ -95,8 +131,8 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to save estate.");
 
-      router.push("/dashboard/estates");
       router.refresh();
+      onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save estate.");
     } finally {
@@ -105,11 +141,11 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-3xl space-y-8">
-      {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>}
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+      {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      <section className="space-y-5 rounded-2xl border border-customBlack-100 bg-white p-6">
-        <h2 className="text-lg font-bold text-customBlack-900">Basic details</h2>
+      <section className={sectionClass}>
+        <SectionHeading>Basic details</SectionHeading>
 
         <FormField label="Estate name">
           <input
@@ -194,13 +230,13 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
         </FormField>
       </section>
 
-      <section className="space-y-5 rounded-2xl border border-customBlack-100 bg-white p-6">
-        <h2 className="text-lg font-bold text-customBlack-900">Images</h2>
+      <section className={sectionClass}>
+        <SectionHeading>Images</SectionHeading>
 
         <FormField label={`Featured image${isEdit ? " (leave blank to keep current)" : ""}`}>
           <div className="flex items-center gap-4">
             {estate?.img && !featuredFile && (
-              <Image src={estate.img} alt="Current featured" width={80} height={60} className="rounded-lg object-cover" />
+              <Image src={estate.img} alt="Current featured" width={80} height={60} className="h-[60px] w-[80px] shrink-0 rounded-lg object-cover" />
             )}
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 hover:border-customPurple-400">
               <Upload size={16} />
@@ -221,7 +257,13 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
             <div className="flex flex-wrap gap-3">
               {keptGallery.map((img) => (
                 <div key={img.publicId} className="relative">
-                  <Image src={img.url} alt="" width={90} height={70} className="rounded-lg object-cover" />
+                  {/* The h-/w- classes are load-bearing, not decoration:
+                      Tailwind's preflight sets `img { height: auto }`, which
+                      beats the height attribute, so width/height alone let
+                      each thumb keep its own aspect ratio and the strip comes
+                      out ragged and overlapping. Same fix as GalleryThumb in
+                      EstatesTable.tsx. */}
+                  <Image src={img.url} alt="" width={90} height={70} className="h-[70px] w-[90px] rounded-lg object-cover" />
                   <button
                     type="button"
                     onClick={() => removeExistingGalleryImage(img.publicId)}
@@ -252,8 +294,8 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
         </FormField>
       </section>
 
-      <section className="space-y-5 rounded-2xl border border-customBlack-100 bg-white p-6">
-        <h2 className="text-lg font-bold text-customBlack-900">More details</h2>
+      <section className={sectionClass}>
+        <SectionHeading>More details</SectionHeading>
 
         <TagListInput label="Amenities" values={amenities} onChange={setAmenities} placeholder="e.g. Perimeter fencing" />
         <TagListInput label="Neighborhood" values={neighborhood} onChange={setNeighborhood} placeholder="e.g. 5 mins from the express" />
@@ -270,7 +312,37 @@ export default function EstateForm({ estate }: { estate?: Estate }) {
         </FormField>
       </section>
 
-      <SubmitButton loading={loading}>{isEdit ? "Save Changes" : "Create Estate"}</SubmitButton>
+      {/* Sticky so the primary action stays reachable on a 375px screen
+          without scrolling to the bottom of a very long form. -mx-6/-mb-6/px-6
+          bleeds it to the edges of the Modal's p-6 body so the blur covers the
+          full width of the panel rather than leaving strips of scrolled
+          content showing either side. */}
+      <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-col-reverse gap-3 border-t border-customBlack-100 bg-white/90 px-6 py-4 backdrop-blur-sm sm:flex-row sm:justify-end">
+        {onCancel && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            className="rounded-lg sm:w-auto"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+        )}
+        <div className="sm:w-56">
+          <SubmitButton loading={loading}>{isEdit ? "Save Changes" : "Create Estate"}</SubmitButton>
+        </div>
+      </div>
     </form>
+  );
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="flex items-center gap-2.5 text-base font-bold text-customBlack-900">
+      <span className="h-5 w-1 rounded-full bg-gradient-to-b from-customPurple-500 to-customPurple-700" />
+      {children}
+    </h2>
   );
 }
