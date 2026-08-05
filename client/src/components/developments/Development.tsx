@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 import { motion } from "framer-motion";
 import { MapPin, ArrowUpRight, Eye, Bookmark, TrendingUp, Building2, Home, BarChart3, SearchX } from "lucide-react";
 import BookInspectionModal from "@/components/inspection/BookInspectionModal";
@@ -50,7 +50,7 @@ function EstateCard({ estate, index }: { estate: Estate; index: number }) {
       >
         <div className="relative overflow-hidden" style={{ height: 260 }}>
           <motion.div className="h-full w-full" animate={{ scale: hovered ? 1.06 : 1 }} transition={{ duration: 0.6, ease: "easeOut" }} style={{ position: "relative", height: "100%" }}>
-            <Image src={estate.img} alt={estate.estate} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" style={{ objectFit: "cover" }} priority={index < 3} />
+            <SafeImage src={estate.img} alt={estate.estate} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" style={{ objectFit: "cover" }} priority={index < 3} fallbackIconSize={40} />
           </motion.div>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(20,10,40,0.78) 0%, rgba(20,10,40,0.18) 50%, transparent 100%)" }} />
 

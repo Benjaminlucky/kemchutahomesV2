@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { MapPin, Maximize2, Building2, ArrowRight } from "lucide-react";
 import BookInspectionModal from "@/components/inspection/BookInspectionModal";
@@ -65,19 +65,23 @@ function EstateCard({
       <div style={{ position: "relative", height: 240, overflow: "hidden", flexShrink: 0 }}>
         {!imgLoaded && <div className="absolute inset-0 animate-pulse" style={{ background: "rgba(255,255,255,0.06)", zIndex: 2 }} />}
 
-        <Image
+        <SafeImage
           src={estate.img}
           alt={estate.estate}
           fill
           sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
           priority={index === 0}
           onLoad={() => setImgLoaded(true)}
+          // A failed image never fires onLoad, so without this the pulse
+          // skeleton above would shimmer forever over the placeholder.
+          onError={() => setImgLoaded(true)}
           style={{
             objectFit: "cover",
             transition: "transform 0.65s cubic-bezier(0.22,1,0.36,1)",
             opacity: imgLoaded ? 1 : 0,
           }}
           className="group-hover:scale-110"
+          fallbackIconSize={40}
         />
 
         <div

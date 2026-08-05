@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore, type RefObject } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigation, Pagination, Autoplay, EffectFade } from "swiper/modules";
@@ -236,13 +236,17 @@ export default function HeroCarousel({ estates, realIndex, setRealIndex, prevRef
       {estates.map((estate, index) => (
         <SwiperSlide key={estate._id}>
           <div className="relative h-full w-full">
-            <Image
+            <SafeImage
               src={estate.img}
               alt={estate.estate}
               fill
               sizes="100vw"
               priority={index === 0}
               style={{ objectFit: "cover" }}
+              // Full-bleed slide, so the placeholder gets a proportionally
+              // larger glyph. The gradient scrims below still sit on top of
+              // it, keeping the headline and CTA legible either way.
+              fallbackIconSize={64}
             />
 
             <div

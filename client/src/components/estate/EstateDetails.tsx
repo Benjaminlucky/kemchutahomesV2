@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
@@ -93,12 +93,14 @@ function Lightbox({
           style={{ position: "relative", width: "85vw", height: "80vh", maxWidth: 1200 }}
           onClick={(e) => e.stopPropagation()}
         >
-          <Image
+          <SafeImage
             src={images[current]}
             alt={`Gallery ${current + 1}`}
             fill
             sizes="85vw"
             style={{ objectFit: "contain", borderRadius: 12 }}
+            fallbackIconSize={64}
+            fallbackClassName="rounded-xl"
           />
         </motion.div>
       </AnimatePresence>
@@ -117,7 +119,10 @@ function Lightbox({
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2">
         {images.map((img, i) => (
           <button
-            key={img}
+            // Index-suffixed: an estate whose featured image also appears in
+            // its gallery yields the same URL twice, and a bare `key={img}`
+            // then collides — React warns and may drop one of the thumbs.
+            key={`${img}-${i}`}
             onClick={(e) => {
               e.stopPropagation();
               setCurrent(i);
@@ -130,7 +135,7 @@ function Lightbox({
               opacity: i === current ? 1 : 0.55,
             }}
           >
-            <Image src={img} alt="" fill sizes="52px" style={{ objectFit: "cover" }} />
+            <SafeImage src={img} alt="" fill sizes="52px" style={{ objectFit: "cover" }} fallbackIconSize={16} />
           </button>
         ))}
       </div>
@@ -176,7 +181,7 @@ export default function EstateDetails({ estate }: { estate: Estate }) {
       />
 
       <div className="relative w-full" style={{ height: "70vh", minHeight: 480 }}>
-        <Image src={estate.img} alt={estate.estate} fill sizes="100vw" priority style={{ objectFit: "cover" }} />
+        <SafeImage src={estate.img} alt={estate.estate} fill sizes="100vw" priority style={{ objectFit: "cover" }} fallbackIconSize={64} />
         <div
           style={{
             position: "absolute",
@@ -255,14 +260,26 @@ export default function EstateDetails({ estate }: { estate: Estate }) {
           <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
             {galleryImages.map((img, i) => (
               <motion.button
-                key={img}
+                // Same duplicate-URL guard as the lightbox strip above.
+                key={`${img}-${i}`}
                 onClick={() => setLightboxIndex(i)}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className="group relative flex-shrink-0 overflow-hidden rounded-xl"
                 style={{ width: i === 0 ? 260 : 180, height: 120, border: "2px solid rgba(255,255,255,0.06)" }}
               >
-                <Image src={img} alt={`Gallery ${i + 1}`} fill sizes="260px" style={{ objectFit: "cover" }} />
+                {/* sizes must track the width set on the button above: the
+                    featured tile is 260px wide, every other thumb 180px.
+                    A flat "260px" made the browser pick an oversized
+                    candidate from the srcset for all but the first. */}
+                <SafeImage
+                  src={img}
+                  alt={`Gallery ${i + 1}`}
+                  fill
+                  sizes={i === 0 ? "260px" : "180px"}
+                  style={{ objectFit: "cover" }}
+                  fallbackIconSize={28}
+                />
                 <div
                   className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100"
                   style={{ background: "rgba(112,12,235,0.5)" }}
@@ -281,12 +298,20 @@ export default function EstateDetails({ estate }: { estate: Estate }) {
       )}
 
       <div className="mx-auto w-full max-w-7xl px-6 py-10 md:px-16">
-        <div className="mb-10 flex gap-1 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+        {/* overflow-x-auto + flex-shrink-0 on the buttons, same pattern as the
+            photo gallery strip above: five tabs at their natural padded width
+            don't fit a 375px screen, and with nothing to contain them the row
+            was dragging the whole page into horizontal scroll instead of
+            scrolling on its own. */}
+        <div
+          className="mb-10 flex gap-1 overflow-x-auto border-b"
+          style={{ borderColor: "rgba(0,0,0,0.08)", scrollbarWidth: "none" }}
+        >
           {tabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className="relative px-5 py-3 text-sm font-bold capitalize transition-all duration-200"
+              className="relative shrink-0 px-5 py-3 text-sm font-bold whitespace-nowrap capitalize transition-all duration-200"
               style={{ color: activeTab === tab ? "#700CEB" : "#6b7280" }}
             >
               {tab}

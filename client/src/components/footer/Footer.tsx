@@ -45,7 +45,7 @@ export default function Footer() {
           </motion.div>
 
           <motion.div
-            className="flex items-start gap-4 md:gap-16"
+            className="flex flex-wrap items-start gap-x-8 gap-y-8 md:gap-x-16"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
