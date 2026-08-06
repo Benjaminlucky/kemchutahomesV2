@@ -35,7 +35,12 @@ export default async function ManageInspectionsPage() {
 
   return (
     <div>
-      <h1 className="mb-8 text-3xl font-bold text-customBlack-900">Manage Inspections</h1>
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-customBlack-900">Manage Inspections</h1>
+        <p className="mt-1.5 text-sm text-customBlack-500">
+          Log, track and confirm every site visit request from one place.
+        </p>
+      </header>
       {loadError ? (
         <p className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-600">
           Couldn&rsquo;t load inspections right now — please refresh.

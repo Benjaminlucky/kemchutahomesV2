@@ -1,9 +1,21 @@
+import { isValidObjectId } from "mongoose";
 import Inspection from "../models/inspection.model.js";
 import {
   notifyInspectionBooked,
   notifyInspectionStatusChanged,
 } from "../utils/notifications.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+
+// ── :id guard ────────────────────────────────────────────────────────────────
+// Mirrors estate.controller.js's rejectedInvalidId — without it, a malformed
+// id reaches findByIdAndUpdate/findById, throws a CastError, and gets reported
+// as a generic 500 for what is plainly bad client input. Returns true when it
+// has already sent the response.
+const rejectedInvalidId = (req, res) => {
+  if (isValidObjectId(req.params.id)) return false;
+  res.status(400).json({ message: "Invalid inspection ID" });
+  return true;
+};
 
 // ── POST /api/inspections ────────────────────────────────────────────────────
 // Books an inspection and fires email + SMS to admin and client simultaneously.
@@ -118,6 +130,7 @@ export const getAllInspections = async (req, res) => {
 // Fires email + SMS to the client for confirmed, cancelled, and completed.
 // Was previously silent — clients received nothing on status change.
 export const updateInspectionStatus = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { status } = req.body;
     const valid = ["pending", "confirmed", "cancelled", "completed"];
@@ -148,6 +161,7 @@ export const updateInspectionStatus = async (req, res) => {
 
 // ── PATCH /api/inspections/:id/notes — Admin: update notes ───────────────────
 export const updateInspectionNotes = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { notes } = req.body;
     const inspection = await Inspection.findByIdAndUpdate(
@@ -160,5 +174,116 @@ export const updateInspectionNotes = async (req, res) => {
     res.json({ message: "Notes updated.", inspection });
   } catch (err) {
     res.status(500).json({ message: "Failed to update notes." });
+  }
+};
+
+// ── GET /api/inspections/:id — Admin: get one ─────────────────────────────────
+export const getInspectionById = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
+  try {
+    const inspection = await Inspection.findById(req.params.id).lean();
+    if (!inspection)
+      return res.status(404).json({ message: "Inspection not found." });
+    res.json(inspection);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch inspection." });
+  }
+};
+
+// ── POST /api/inspections/admin — Admin: log an inspection manually ──────────
+// For bookings taken over the phone/in person rather than through the public
+// form. Reuses the same booked-notification email/SMS as the public flow so
+// the client still gets a confirmation regardless of which channel booked it.
+export const createInspectionAdmin = async (req, res) => {
+  try {
+    const {
+      estateName,
+      estateId,
+      firstName,
+      lastName,
+      email,
+      phone,
+      inspectionDate,
+      persons,
+      status,
+      notes,
+    } = req.body;
+
+    const inspection = await Inspection.create({
+      estateName,
+      estateId: estateId || null,
+      firstName,
+      lastName,
+      email,
+      phone,
+      inspectionDate,
+      persons,
+      status: status || "pending",
+      notes: notes || "",
+    });
+
+    notifyInspectionBooked(inspection).catch((err) =>
+      console.error("Inspection notification failed:", err.message),
+    );
+
+    res.status(201).json({
+      message: "Inspection created successfully.",
+      inspection,
+    });
+  } catch (err) {
+    console.error("createInspectionAdmin:", err);
+    res.status(500).json({ message: "Failed to create inspection." });
+  }
+};
+
+// ── PUT /api/inspections/:id — Admin: full edit ───────────────────────────────
+export const updateInspection = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
+  try {
+    const existing = await Inspection.findById(req.params.id);
+    if (!existing)
+      return res.status(404).json({ message: "Inspection not found." });
+
+    const updates = { ...req.body };
+    if ("estateId" in updates) updates.estateId = updates.estateId || null;
+
+    const previousStatus = existing.status;
+    const inspection = await Inspection.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true, runValidators: true },
+    );
+
+    // The edit form can change status alongside every other field — fire the
+    // same client notification the dedicated status-only endpoint sends, so
+    // an admin editing status here doesn't silently skip it.
+    if (
+      updates.status &&
+      updates.status !== previousStatus &&
+      ["confirmed", "cancelled", "completed"].includes(updates.status)
+    ) {
+      notifyInspectionStatusChanged(inspection).catch((err) =>
+        console.error("Inspection status notification failed:", err.message),
+      );
+    }
+
+    res.json({ message: "Inspection updated successfully.", inspection });
+  } catch (err) {
+    console.error("updateInspection:", err);
+    res.status(500).json({ message: "Failed to update inspection." });
+  }
+};
+
+// ── DELETE /api/inspections/:id — Admin: delete ───────────────────────────────
+export const deleteInspection = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
+  try {
+    const inspection = await Inspection.findByIdAndDelete(req.params.id);
+    if (!inspection)
+      return res.status(404).json({ message: "Inspection not found." });
+    res.json({ message: "Inspection deleted successfully." });
+  } catch (err) {
+    console.error("deleteInspection:", err);
+    res.status(500).json({ message: "Failed to delete inspection." });
   }
 };
