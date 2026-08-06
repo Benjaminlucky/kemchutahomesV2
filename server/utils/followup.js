@@ -17,7 +17,6 @@ import {
   sendEmail,
   sendSMS,
   sendPostInspectionFollowUp,
-  notifyB2SMatured,
 } from "./notifications.js";
 import { sendPaymentReminders } from "../controllers/subscription.controller.js";
 import { finalisePendingCommissions } from "./commissionCalculator.js";

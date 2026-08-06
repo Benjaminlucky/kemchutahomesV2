@@ -16,6 +16,15 @@ export function statusLabel(status: string): string {
   return status.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
 
+// Live data can contain a status value outside the current B2S_STATUSES
+// union (a hand-edited record, or a future enum addition) — indexing
+// STATUS_TONE directly with such a value returns undefined, which Badge/
+// TONES silently render as an unstyled, colorless pill. Falling back to
+// "gray" means an unrecognized status still reads clearly.
+export function statusTone(status: string): BadgeTone {
+  return (STATUS_TONE as Record<string, BadgeTone>)[status] ?? "gray";
+}
+
 export type ROISettings = {
   roiPercent6Months: number;
   roiPercent12Months: number;
@@ -64,6 +73,13 @@ export type Lead = {
   status: B2SStatus;
   notes?: string;
   createdAt: string;
+
+  // Computed server-side (model virtuals / getAllLeads' manual .lean() copy)
+  // but never previously declared on the client type, so the UI never
+  // rendered any of them.
+  maturityProgressPercent?: number;
+  daysRemaining?: number | null;
+  balanceOutstanding?: number;
 };
 
 export type LeadListResponse = {

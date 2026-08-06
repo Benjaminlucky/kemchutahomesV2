@@ -1,8 +1,5 @@
-import {
-  ROISettings,
-  Buy2SellLead,
-  B2S_STATUSES,
-} from "../models/Buy2sell.model.js";
+import { isValidObjectId } from "mongoose";
+import { ROISettings, Buy2SellLead } from "../models/Buy2sell.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { triggerRevalidate } from "../utils/revalidate.js";
 import { invalidateChatPromptCache } from "../utils/chatPromptCache.js";
@@ -16,15 +13,19 @@ import {
   generateInvestmentAgreement,
   generatePayoutConfirmation,
 } from "../utils/pdfGenerator.js";
-import {
-  sendEmail,
-  sendSMS,
-  notifyB2SSubmitted,
-  notifyB2SActivated,
-  notifyB2SMatured,
-  notifyB2SPaidOut,
-} from "../utils/notifications.js";
+import { sendEmail, sendSMS } from "../utils/notifications.js";
 import { getActiveBankAccounts } from "./Bankaccount.controller.js";
+
+// ── :id guard ────────────────────────────────────────────────────────────────
+// Mirrors estate.controller.js's rejectedInvalidId — without it, a malformed
+// id reaches findById/findByIdAndUpdate, throws a CastError, and gets reported
+// as a generic 500 for what is plainly bad client input. Returns true when it
+// has already sent the response.
+const rejectedInvalidId = (req, res) => {
+  if (isValidObjectId(req.params.id)) return false;
+  res.status(400).json({ message: "Invalid investment ID" });
+  return true;
+};
 
 const ADMIN_EMAIL = () =>
   process.env.ADMIN_EMAIL || "info@kemchutahomesltd.com";
@@ -60,6 +61,23 @@ async function genRef() {
   const year = new Date().getFullYear();
   const count = await Buy2SellLead.countDocuments();
   return `KHL-B2S-${year}-${String(count + 1).padStart(5, "0")}`;
+}
+
+// Reference numbers are derived from a document count with no atomic lock, so
+// two submissions arriving close together can compute the same value and
+// collide against the unique referenceNumber index (same issue fixed in
+// subscription.controller.js). Retries with a freshly generated ref rather
+// than dropping the investor's submission with a raw duplicate-key error.
+async function createLeadWithUniqueRef(body, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    const referenceNumber = await genRef();
+    try {
+      return await Buy2SellLead.create({ ...body, referenceNumber });
+    } catch (err) {
+      const isDupRef = err.code === 11000 && err.keyPattern?.referenceNumber;
+      if (!isDupRef || i === attempts - 1) throw err;
+    }
+  }
 }
 
 // ── Email wrapper ─────────────────────────────────────────────────────────────
@@ -219,7 +237,19 @@ export const submitBuy2SellLead = async (req, res) => {
       "18 Months": roi?.roiPercent18Months ?? 75,
     };
     const roiPercent = roiMap[duration];
-    const referenceNumber = await genRef();
+
+    // minInvestment/maxInvestment are admin-configurable in ROI Settings but
+    // were never actually checked anywhere — enforce them here so they're not
+    // purely decorative.
+    const principal = Number(principalAmount);
+    const minInvestment = roi?.minInvestment ?? 0;
+    const maxInvestment = roi?.maxInvestment ?? Infinity;
+    if (principal < minInvestment || principal > maxInvestment) {
+      return res.status(400).json({
+        message: `Investment amount must be between ${fmtNGN(minInvestment)} and ${fmtNGN(maxInvestment)}.`,
+      });
+    }
+
     const banks = await getActiveBankAccounts();
 
     // ── Check if a client account already exists for this email ──────────
@@ -229,14 +259,23 @@ export const submitBuy2SellLead = async (req, res) => {
       .select("_id firstName")
       .lean();
 
-    const lead = await Buy2SellLead.create({
-      referenceNumber,
+    // Expected ROI/payout are pure percentage math off the locked-in rate —
+    // computed and stored now (not left at the schema's 0 default until
+    // recordPayment activates the investment) so a Certificate/Agreement
+    // downloaded before activation shows the same numbers the investor was
+    // actually emailed, instead of ₦0.
+    const roi_amount = Math.round((principal * roiPercent) / 100);
+    const total_payout = principal + roi_amount;
+
+    const lead = await createLeadWithUniqueRef({
       fullName: fullName.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
       duration,
-      principalAmount: Number(principalAmount),
+      principalAmount: principal,
       roiPercent, // ← snapshotted, never changes
+      expectedROI: roi_amount,
+      expectedPayout: total_payout,
       clientId: existingClient?._id || null, // ← link if account exists
       dateOfBirth: dateOfBirth || null,
       gender: gender || "",
@@ -247,11 +286,7 @@ export const submitBuy2SellLead = async (req, res) => {
       idType: idType || "",
       idNumber: idNumber || "",
     });
-
-    const roi_amount = Math.round(
-      (lead.principalAmount * lead.roiPercent) / 100,
-    );
-    const total_payout = lead.principalAmount + roi_amount;
+    const referenceNumber = lead.referenceNumber;
 
     // ── Generate invoice PDF and send congratulatory email ────────────────
     try {
@@ -430,6 +465,7 @@ export const getAllLeads = async (req, res) => {
 // GET /api/buy2sell/leads/:id  (admin)
 // ─────────────────────────────────────────────────────────────────────────────
 export const getLeadById = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const lead = await Buy2SellLead.findById(req.params.id);
     if (!lead) return res.status(404).json({ message: "Investment not found" });
@@ -458,11 +494,27 @@ export const getMyInvestments = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/buy2sell/leads/:id/record-payment  (admin — Step 1: log payment)
 // ─────────────────────────────────────────────────────────────────────────────
+const FINISHED_STATUSES = ["matured", "paid_out", "closed"];
+
 export const recordPayment = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { amount, method, reference, note, paidAt } = req.body;
     if (!amount || Number(amount) <= 0)
       return res.status(400).json({ message: "Valid amount required" });
+
+    // Without this, a payment logged against a matured/paid-out/closed
+    // investment falls straight into the "balance <= 0 → activate" branch
+    // below and re-fires the activation email, certificate, and SMS for an
+    // investment that has already progressed past that stage.
+    const existing = await Buy2SellLead.findById(req.params.id).select("status");
+    if (!existing)
+      return res.status(404).json({ message: "Investment not found" });
+    if (FINISHED_STATUSES.includes(existing.status)) {
+      return res.status(400).json({
+        message: `Cannot record a payment on a ${existing.status} investment.`,
+      });
+    }
 
     const lead = await Buy2SellLead.findByIdAndUpdate(
       req.params.id,
@@ -609,6 +661,7 @@ export const recordPayment = async (req, res) => {
 // PATCH /api/buy2sell/leads/:id/mature  (admin — mark investment matured)
 // ─────────────────────────────────────────────────────────────────────────────
 export const markMatured = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const lead = await Buy2SellLead.findByIdAndUpdate(
       req.params.id,
@@ -654,6 +707,7 @@ export const markMatured = async (req, res) => {
 // POST /api/buy2sell/leads/:id/process-payout  (admin)
 // ─────────────────────────────────────────────────────────────────────────────
 export const processPayout = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { actualPayout, payoutReference } = req.body;
     const lead = await Buy2SellLead.findById(req.params.id);
@@ -737,9 +791,25 @@ export const processPayout = async (req, res) => {
 // GET /api/buy2sell/leads/:id/documents/:docType  (admin + client)
 // ─────────────────────────────────────────────────────────────────────────────
 export const downloadDocument = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const lead = await Buy2SellLead.findById(req.params.id);
     if (!lead) return res.status(404).json({ message: "Investment not found" });
+
+    // protectAdminOrClient only checks the token is valid, not that a
+    // client-role caller owns this particular investment — without this, any
+    // logged-in client could download another investor's certificate,
+    // agreement, or payout confirmation (all contain PII + financial data) by
+    // guessing/enumerating lead IDs. Mirrors the same fix in
+    // subscription.controller.js's downloadDocument. Ownership matches
+    // getMyInvestments' own definition: by email or by linked clientId.
+    if (
+      req.user?.role === "client" &&
+      lead.email?.toLowerCase() !== req.user.email?.toLowerCase() &&
+      String(lead.clientId || "") !== String(req.user.id || "")
+    ) {
+      return res.status(403).json({ message: "Access denied." });
+    }
 
     const { docType } = req.params;
     let buf;
@@ -763,17 +833,25 @@ export const downloadDocument = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/buy2sell/leads/:id/status  (admin — generic status update)
+// PATCH /api/buy2sell/leads/:id/status  (admin — internal notes only)
+//
+// Every real B2S status transition already has a dedicated endpoint with the
+// correct side effects: recordPayment (→ partial_paid/active), markMatured
+// (→ matured), processPayout (→ paid_out). Unlike Subscriptions' pending/
+// confirmed/rejected, there is no B2S status that is a pure admin decision
+// independent of money movement — so unlike that page, this endpoint doesn't
+// get a restricted-but-still-editable status subset, it drops status editing
+// entirely. Letting it accept an arbitrary status let an admin mark an
+// investment "paid_out" with no payout on record, or "active" with no
+// principal ever received.
 // ─────────────────────────────────────────────────────────────────────────────
 export const updateLeadStatus = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
-    const { status, notes } = req.body;
-    if (status && !B2S_STATUSES.includes(status))
-      return res.status(400).json({ message: "Invalid status" });
-
+    const { notes } = req.body;
     const lead = await Buy2SellLead.findByIdAndUpdate(
       req.params.id,
-      { ...(status && { status }), ...(notes !== undefined && { notes }) },
+      { ...(notes !== undefined && { notes }) },
       { new: true },
     );
     if (!lead) return res.status(404).json({ message: "Investment not found" });

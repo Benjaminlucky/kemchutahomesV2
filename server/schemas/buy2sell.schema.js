@@ -41,8 +41,10 @@ export const processPayoutSchema = z.object({
   method: z.string().trim().optional(),
 });
 
+// Notes-only — every real status transition has its own dedicated, properly
+// validated endpoint (record-payment, mature, process-payout). See the
+// comment on updateLeadStatus in Buy2sell.controller.js for why status is
+// deliberately not accepted here.
 export const updateLeadStatusSchema = z.object({
-  // Checked against the live B2S_STATUSES export in the controller.
-  status: z.string().optional(),
   notes: z.string().trim().optional(),
 });

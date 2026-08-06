@@ -36,8 +36,17 @@ export default function ROISettingsSection({ initial }: { initial: ROISettings |
     initialData: initial ?? undefined,
   });
 
-  if (!dirty && roi && JSON.stringify(roi) !== JSON.stringify(form)) {
-    setForm(roi);
+  // "Adjusting state when a prop changes" — React's own sanctioned pattern
+  // for this (see react.dev/learn/you-might-not-need-an-effect) is a
+  // conditional setState during render, not inside useEffect: an effect runs
+  // a commit after the roi-driven render, and setState there triggers a
+  // second cascading render for what should be a single update. Refs can't
+  // be read/written during render either, so the "last seen roi" has to be
+  // tracked in state, not a ref.
+  const [prevRoi, setPrevRoi] = useState(roi);
+  if (roi && roi !== prevRoi) {
+    setPrevRoi(roi);
+    if (!dirty) setForm(roi);
   }
 
   const mutation = useDashboardMutation<unknown, ROISettings>({
