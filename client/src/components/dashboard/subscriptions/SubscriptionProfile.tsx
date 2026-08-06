@@ -22,9 +22,10 @@ import { useDashboardMutation } from "@/lib/useDashboardMutation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Toast } from "@/components/ui/Toast";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { FormField, textInputClass } from "@/components/client-auth/FormField";
 import {
-  STATUS_TONE,
+  statusTone,
   statusLabel,
   DOC_LABELS,
   type SubscriptionDetail,
@@ -38,7 +39,7 @@ async function fetchSubscription(id: string): Promise<SubscriptionDetail> {
 }
 
 function naira(n: number) {
-  return `₦${Math.round(n).toLocaleString()}`;
+  return `₦${Math.round(n || 0).toLocaleString()}`;
 }
 
 function fmtDate(d?: string | null) {
@@ -73,7 +74,7 @@ function ProgressCard({ sub }: { sub: SubscriptionDetail }) {
           <p className="text-xs font-bold tracking-widest text-customBlack-400 uppercase">Payment Progress</p>
           <p className="text-3xl font-black text-customPurple-600">{pct}%</p>
         </div>
-        <Badge tone={STATUS_TONE[sub.status]}>{statusLabel(sub.status)}</Badge>
+        <Badge tone={statusTone(sub.status)}>{statusLabel(sub.status)}</Badge>
       </div>
       <div className="mb-4 h-3 overflow-hidden rounded-full bg-customPurple-50">
         <div
@@ -153,14 +154,18 @@ function getMilestones(sub: SubscriptionDetail): Milestone[] {
     });
   } else {
     const confirmedPayments = sub.payments.filter((p) => p.confirmed);
+    // Full Outright payment lands the record on "completed" or "allocated",
+    // not the older "outright_paid" status those two string checks expected
+    // — comparing against isPaymentComplete (the server's own amountPaid >=
+    // totalAmount check) instead means this reads correctly no matter which
+    // terminal status the record actually carries.
     milestones.push({
       id: "payment",
-      label:
-        sub.status === "outright_paid"
-          ? "Full Payment Received"
-          : sub.status === "partial_paid"
-            ? "Partial Payment Received"
-            : "Payment Pending",
+      label: sub.isPaymentComplete
+        ? "Full Payment Received"
+        : confirmedPayments.length > 0
+          ? "Partial Payment Received"
+          : "Payment Pending",
       sub: confirmedPayments.length ? `${naira(sub.amountPaid)} of ${naira(sub.totalAmount)}` : `${naira(sub.totalAmount)} outstanding`,
       date: confirmedPayments[0]?.confirmedAt,
       done: confirmedPayments.length > 0,
@@ -273,13 +278,15 @@ function InstalmentTable({ sub }: { sub: SubscriptionDetail }) {
 // ── Documents ─────────────────────────────────────────────────────────────────
 function DocumentsPanel({ sub }: { sub: SubscriptionDetail }) {
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleDownload(type: SubscriptionDetail["documents"][number]["type"], label: string) {
     setDownloading(type);
+    setError(null);
     try {
       await downloadDocument(`/api/subscriptions/${sub._id}/documents/${type}`, `${label}.pdf`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Download failed");
+      setError(err instanceof Error ? err.message : "Download failed");
     } finally {
       setDownloading(null);
     }
@@ -287,6 +294,7 @@ function DocumentsPanel({ sub }: { sub: SubscriptionDetail }) {
 
   return (
     <Card title={`Documents (${sub.documents.length})`}>
+      {error && <ErrorBanner className="mb-3">{error}</ErrorBanner>}
       {sub.documents.length === 0 ? (
         <p className="py-4 text-center text-sm text-customBlack-400">No documents generated yet.</p>
       ) : (
@@ -314,10 +322,64 @@ function DocumentsPanel({ sub }: { sub: SubscriptionDetail }) {
   );
 }
 
+// ── Applicant KYC + next of kin ───────────────────────────────────────────────
+// The server has always returned this data (it's required on the model),
+// but the admin UI never rendered any of it — an admin verifying an
+// applicant's identity or needing to reach their next of kin had nowhere to
+// look on this page.
+function KycField({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold tracking-widest text-customBlack-400 uppercase">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold break-words text-customBlack-900">{value || "—"}</p>
+    </div>
+  );
+}
+
+function ApplicantDetailsCard({ sub }: { sub: SubscriptionDetail }) {
+  const spouseName = [sub.spouseFirstName, sub.spouseLastName].filter(Boolean).join(" ");
+  return (
+    <Card title="Applicant Details">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <KycField label="Date of Birth" value={fmtDate(sub.dateOfBirth)} />
+        <KycField label="Gender" value={sub.gender} />
+        <KycField label="Marital Status" value={sub.maritalStatus} />
+        {spouseName && <KycField label="Spouse" value={spouseName} />}
+        <KycField label="Nationality" value={sub.nationality} />
+        {sub.employerName && <KycField label="Employer" value={sub.employerName} />}
+      </div>
+      <div className="mt-4 border-t border-customBlack-50 pt-4">
+        <KycField
+          label="Residential Address"
+          value={[sub.residentialAddress, sub.cityTown, sub.lga, sub.state, sub.countryOfResidence]
+            .filter(Boolean)
+            .join(", ")}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function NextOfKinCard({ sub }: { sub: SubscriptionDetail }) {
+  return (
+    <Card title="Next of Kin">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <KycField label="Name" value={`${sub.kinFirstName} ${sub.kinLastName}`} />
+        <KycField label="Phone" value={sub.kinPhone} />
+        <KycField
+          label="Address"
+          value={[sub.kinAddress, sub.kinCity, sub.kinLga].filter(Boolean).join(", ")}
+        />
+      </div>
+    </Card>
+  );
+}
+
 // ── Admin actions: confirm + allocate ────────────────────────────────────────
 function AdminActions({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: () => void }) {
   const [showAlloc, setShowAlloc] = useState(false);
   const [form, setForm] = useState({ plotNumber: "", plotDescription: "", titleDocument: "" });
+  const [error, setError] = useState<string | null>(null);
 
   const confirmMutation = useDashboardMutation<unknown, void>({
     mutationFn: async () => {
@@ -326,7 +388,11 @@ function AdminActions({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: 
       if (!res.ok) throw new Error(data.message || "Failed to confirm subscription");
       return data;
     },
-    onSuccess: onRefresh,
+    onSuccess: () => {
+      setError(null);
+      onRefresh();
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : "Failed to confirm subscription"),
   });
 
   const allocateMutation = useDashboardMutation<unknown, typeof form>({
@@ -341,9 +407,11 @@ function AdminActions({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: 
       return data;
     },
     onSuccess: () => {
+      setError(null);
       setShowAlloc(false);
       onRefresh();
     },
+    onError: (err) => setError(err instanceof Error ? err.message : "Failed to allocate plot"),
   });
 
   const canAllocate = sub.status === "completed" || sub.status === "outright_paid";
@@ -351,6 +419,7 @@ function AdminActions({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: 
   return (
     <Card title="Admin Actions">
       <div className="space-y-3">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
         {sub.status === "pending" && (
           <Button
             size="sm"
@@ -436,6 +505,7 @@ function AdminActions({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: 
 // ── Payments ──────────────────────────────────────────────────────────────────
 function PaymentPanel({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: () => void }) {
   const [form, setForm] = useState({ amount: "", method: "Bank Transfer", reference: "", note: "", paidAt: "" });
+  const [error, setError] = useState<string | null>(null);
 
   const pending = sub.payments.filter((p) => !p.confirmed);
 
@@ -451,9 +521,11 @@ function PaymentPanel({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: 
       return data;
     },
     onSuccess: () => {
+      setError(null);
       setForm({ amount: "", method: "Bank Transfer", reference: "", note: "", paidAt: "" });
       onRefresh();
     },
+    onError: (err) => setError(err instanceof Error ? err.message : "Failed to record payment"),
   });
 
   const confirmMutation = useDashboardMutation<unknown, SubscriptionPayment>({
@@ -465,11 +537,16 @@ function PaymentPanel({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: 
       if (!res.ok) throw new Error(data.message || "Failed to confirm payment");
       return data;
     },
-    onSuccess: onRefresh,
+    onSuccess: () => {
+      setError(null);
+      onRefresh();
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : "Failed to confirm payment"),
   });
 
   return (
     <Card title="Record Payment">
+      {error && <ErrorBanner className="mb-4">{error}</ErrorBanner>}
       {pending.length > 0 && (
         <div className="mb-5 space-y-2">
           <p className="text-xs font-bold text-amber-600">Pending Confirmation ({pending.length})</p>
@@ -562,6 +639,7 @@ function PaymentPanel({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: 
 function NotesPanel({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: () => void }) {
   const [text, setText] = useState("");
   const [type, setType] = useState<"call" | "email" | "chat" | "note">("note");
+  const [error, setError] = useState<string | null>(null);
 
   const addMutation = useDashboardMutation<unknown, void>({
     mutationFn: async () => {
@@ -575,15 +653,18 @@ function NotesPanel({ sub, onRefresh }: { sub: SubscriptionDetail; onRefresh: ()
       return data;
     },
     onSuccess: () => {
+      setError(null);
       setText("");
       onRefresh();
     },
+    onError: (err) => setError(err instanceof Error ? err.message : "Failed to add note"),
   });
 
   const notes = [...sub.notes].sort((a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime());
 
   return (
     <Card title="Follow-up Notes">
+      {error && <ErrorBanner className="mb-4">{error}</ErrorBanner>}
       <div className="mb-4 flex gap-2">
         {(["call", "email", "chat", "note"] as const).map((t) => (
           <button
@@ -688,16 +769,21 @@ export default function SubscriptionProfile({ initial }: { initial: Subscription
           <div className="text-right">
             <p className="text-[10px] font-bold tracking-widest text-white/60 uppercase">Reference</p>
             <p className="mb-1.5 font-mono text-base font-black">{sub.referenceNumber}</p>
-            <Badge tone={STATUS_TONE[sub.status]}>{statusLabel(sub.status)}</Badge>
+            <Badge tone={statusTone(sub.status)}>{statusLabel(sub.status)}</Badge>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 border-t border-white/15 pt-4 text-sm text-white/75">
-          <span>{sub.email}</span>
+          <span className="break-all">{sub.email}</span>
           <span>{sub.phone}</span>
           <span>
             {sub.plotType} · {sub.plotSize} · ×{sub.numberOfPlots}
           </span>
           <span>Subscribed {fmtDate(sub.createdAt)}</span>
+          {sub.realtorId && (
+            <span>
+              Referred by {sub.realtorId.firstName} {sub.realtorId.lastName} ({sub.realtorId.referralCode})
+            </span>
+          )}
         </div>
       </div>
 
@@ -708,6 +794,8 @@ export default function SubscriptionProfile({ initial }: { initial: Subscription
           <MilestoneTimeline sub={sub} />
           <InstalmentTable sub={sub} />
           <DocumentsPanel sub={sub} />
+          <ApplicantDetailsCard sub={sub} />
+          <NextOfKinCard sub={sub} />
         </div>
         <div className="space-y-5">
           <AdminActions sub={sub} onRefresh={() => refresh("Updated")} />

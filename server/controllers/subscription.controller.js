@@ -1,3 +1,4 @@
+import { isValidObjectId } from "mongoose";
 import Subscription, { STATUSES } from "../models/Subscription.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import {
@@ -38,11 +39,40 @@ const fmtDate = (d) =>
     : "—";
 const pdfToBase64 = (buf) => buf.toString("base64");
 
+// ── :id guard ────────────────────────────────────────────────────────────────
+// Mirrors estate.controller.js's rejectedInvalidId — without it, a malformed
+// id reaches findById/findByIdAndUpdate, throws a CastError, and gets reported
+// as a generic 500 for what is plainly bad client input. Returns true when it
+// has already sent the response.
+const rejectedInvalidId = (req, res) => {
+  if (isValidObjectId(req.params.id)) return false;
+  res.status(400).json({ message: "Invalid subscription ID" });
+  return true;
+};
+
 // ── Reference number ──────────────────────────────────────────────────────────
 async function genRef() {
   const year = new Date().getFullYear();
   const count = await Subscription.countDocuments();
   return `KHL-${year}-${String(count + 1).padStart(5, "0")}`;
+}
+
+// Reference numbers are derived from a document count with no atomic lock, so
+// two submissions arriving close together can compute the same value and
+// collide against the unique referenceNumber index. Retries with a freshly
+// generated ref rather than letting the whole submission fail with a raw
+// duplicate-key error.
+async function createWithUniqueRef(body, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    const referenceNumber = await genRef();
+    try {
+      return await Subscription.create({ ...body, referenceNumber });
+    } catch (err) {
+      const isDupRef =
+        err.code === 11000 && err.keyPattern?.referenceNumber;
+      if (!isDupRef || i === attempts - 1) throw err;
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,8 +191,7 @@ const bankBox = (ref, accounts = []) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const createSubscription = async (req, res) => {
   try {
-    const referenceNumber = await genRef();
-    const body = { ...req.body, referenceNumber };
+    const body = { ...req.body };
     const banks = await getActiveBankAccounts(); // fetch live bank accounts
 
     // Build instalment schedule immediately on creation
@@ -174,7 +203,7 @@ export const createSubscription = async (req, res) => {
       );
     }
 
-    const sub = await Subscription.create(body);
+    const sub = await createWithUniqueRef(body);
     const fullName = `${sub.title} ${sub.firstName} ${sub.lastName}`;
     const ref = sub.referenceNumber;
     const isInst = sub.paymentPlan === "Instalment";
@@ -400,8 +429,11 @@ export const getAllSubscriptions = async (req, res) => {
 // GET /api/subscriptions/:id — single subscription (admin)
 // ─────────────────────────────────────────────────────────────────────────────
 export const getSubscriptionById = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
-    const sub = await Subscription.findById(req.params.id).lean();
+    const sub = await Subscription.findById(req.params.id)
+      .populate("realtorId", "firstName lastName referralCode")
+      .lean();
     if (!sub)
       return res.status(404).json({ message: "Subscription not found." });
     // Attach virtuals manually since .lean() strips them
@@ -418,8 +450,6 @@ export const getSubscriptionById = async (req, res) => {
     res.json(sub);
   } catch (err) {
     console.error("getSubscriptionById:", err.message);
-    if (err.name === "CastError")
-      return res.status(400).json({ message: "Invalid subscription ID." });
     res.status(500).json({ message: "Failed to fetch subscription." });
   }
 };
@@ -439,6 +469,7 @@ export const getMySubscriptions = async (req, res) => {
 // POST /api/subscriptions/:id/notes — admin adds a follow-up note
 // ─────────────────────────────────────────────────────────────────────────────
 export const addNote = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { content, type = "note" } = req.body;
     if (!content?.trim())
@@ -467,20 +498,25 @@ export const addNote = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/subscriptions/:id/status — Admin inline status dropdown
-// Generic status change used by the ManageSubscriptions table dropdown.
+// Only the statuses an admin actually decides (pending/confirmed/rejected)
+// are settable here. The rest of STATUSES — partial_paid, outright_paid,
+// inst_N_paid, completed, allocated — are derived from real money movement
+// or a real plot assignment (confirmPayment / allocatePlot) and must never
+// be reachable by picking an option in a dropdown: doing so would let an
+// admin mark a subscription "completed" or "allocated" with zero payments
+// or documents behind it.
 // ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/subscriptions/:id/status — Admin inline status dropdown
-// Handles every status transition with correct field updates + email triggers.
-// ─────────────────────────────────────────────────────────────────────────────
+const ADMIN_SETTABLE_STATUSES = ["pending", "confirmed", "rejected"];
+
 export const updateSubscriptionStatus = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const banks = await getActiveBankAccounts();
     const { status } = req.body;
-    if (!STATUSES.includes(status))
-      return res
-        .status(400)
-        .json({ message: `Invalid status. Valid: ${STATUSES.join(", ")}` });
+    if (!ADMIN_SETTABLE_STATUSES.includes(status))
+      return res.status(400).json({
+        message: `This status can only be set by the payment/allocation workflow. Valid manual values: ${ADMIN_SETTABLE_STATUSES.join(", ")}`,
+      });
 
     // Build the update payload — add extra fields for specific transitions
     const update = { status };
@@ -488,9 +524,6 @@ export const updateSubscriptionStatus = async (req, res) => {
     if (status === "confirmed") {
       update.confirmedByAdmin = req.user?.email || "admin";
       update.confirmedAt = new Date();
-    }
-    if (status === "allocated") {
-      update.allocationDate = update.allocationDate || new Date();
     }
 
     const sub = await Subscription.findByIdAndUpdate(req.params.id, update, {
@@ -579,54 +612,6 @@ export const updateSubscriptionStatus = async (req, res) => {
           break;
         }
 
-        case "completed": {
-          await sendEmail({
-            to: sub.email,
-            subject: `🎉 Payment Complete — ${sub.estateName} [${ref}]`,
-            html: emailWrap(`
-              <h2 style="color:#059669;font-size:22px;font-weight:900;margin:0 0 8px;">All Payments Complete! 🎉</h2>
-              <p style="color:#374151;font-size:15px;line-height:1.75;">
-                Dear <strong>${fullName}</strong>,<br><br>
-                Congratulations! All payments for your land at <strong>${sub.estateName}</strong> have been received in full.
-                Your plot allocation is being processed. You will be notified once your plot number is assigned.
-              </p>
-              ${btn("View My Portal", `${FRONTEND()}/client/portal`)}
-            `),
-          }).catch(() => null);
-          break;
-        }
-
-        case "allocated": {
-          if (sub.plotNumber) {
-            try {
-              const allocBuf = await generateAllocationLetter(sub);
-              await sendEmail({
-                to: sub.email,
-                subject: `🏡 Plot Allocated — ${sub.estateName} [${ref}]`,
-                attachments: [
-                  {
-                    filename: `Allocation-${ref}.pdf`,
-                    content: pdfToBase64(allocBuf),
-                    contentType: "application/pdf",
-                  },
-                ],
-                html: emailWrap(`
-                  <h2 style="color:#700CEB;font-size:22px;font-weight:900;margin:0 0 8px;">Plot Allocated! 🏡</h2>
-                  <p style="color:#374151;font-size:15px;line-height:1.75;">
-                    Dear <strong>${fullName}</strong>,<br><br>
-                    Your plot at <strong>${sub.estateName}</strong> has been officially allocated.
-                    Plot number: <strong style="color:#700CEB;">${sub.plotNumber}</strong>
-                  </p>
-                  ${btn("View My Portal", `${FRONTEND()}/client/portal`)}
-                `),
-              });
-            } catch (e) {
-              console.error("Allocation email failed:", e.message);
-            }
-          }
-          break;
-        }
-
         default:
           break;
       }
@@ -648,6 +633,7 @@ export const updateSubscriptionStatus = async (req, res) => {
 // Triggers: confirmation email + invoice to client
 // ─────────────────────────────────────────────────────────────────────────────
 export const confirmSubscription = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const banks = await getActiveBankAccounts();
     const sub = await Subscription.findByIdAndUpdate(
@@ -730,6 +716,7 @@ export const confirmSubscription = async (req, res) => {
 // POST /api/subscriptions/:id/payments — Step 1: log incoming payment
 // ─────────────────────────────────────────────────────────────────────────────
 export const recordPayment = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { amount, method, reference, note, paidAt } = req.body;
     if (!amount || amount <= 0)
@@ -771,6 +758,7 @@ export const recordPayment = async (req, res) => {
 // Confirms payment, advances status, generates receipt + next invoice, sends email
 // ─────────────────────────────────────────────────────────────────────────────
 export const confirmPayment = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const sub = await Subscription.findById(req.params.id);
     if (!sub)
@@ -805,7 +793,6 @@ export const confirmPayment = async (req, res) => {
         unpaid.paymentId = payment._id;
       }
 
-      const totalInstalments = sub.instalmentMonths + 1; // deposit + monthly
       if (sub.amountPaid >= sub.totalAmount) {
         sub.status = "completed";
       } else {
@@ -829,7 +816,7 @@ export const confirmPayment = async (req, res) => {
       if (sub.amountPaid >= sub.totalAmount) {
         sub.status = "completed";
       } else {
-        sub.status = confirmedN === 1 ? "partial_paid" : "partial_paid";
+        sub.status = "partial_paid";
       }
     }
 
@@ -1015,6 +1002,7 @@ export const confirmPayment = async (req, res) => {
 // PATCH /api/subscriptions/:id/allocate — assign plot, issue final docs
 // ─────────────────────────────────────────────────────────────────────────────
 export const allocatePlot = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { plotNumber, titleDocument, plotDescription } = req.body;
     if (!plotNumber?.trim())
@@ -1135,6 +1123,7 @@ export const allocatePlot = async (req, res) => {
 // GET /api/subscriptions/:id/documents/:docType — download PDF
 // ─────────────────────────────────────────────────────────────────────────────
 export const downloadDocument = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const sub = await Subscription.findById(req.params.id);
     if (!sub)
