@@ -3,6 +3,7 @@
 import Subscription from "../models/Subscription.model.js";
 import Realtor from "../models/realtor.model.js";
 import Estate from "../models/estate.model.js";
+import { Buy2SellLead } from "../models/Buy2sell.model.js";
 
 let counter = 0;
 function uniqueSuffix() {
@@ -69,6 +70,20 @@ export async function makeSubscription(overrides = {}) {
     kinLastName: "Person",
     kinAddress: "2 Test Street",
     kinPhone: "+2348022222222",
+    ...overrides,
+  });
+}
+
+export async function makeBuy2SellLead(overrides = {}) {
+  const suffix = uniqueSuffix();
+  return Buy2SellLead.create({
+    referenceNumber: `KHL-B2S-TEST-${suffix}`,
+    fullName: "Test Investor",
+    email: `investor-${suffix}@example.com`,
+    phone: "+2348033333333",
+    duration: "12 Months",
+    principalAmount: 5_000_000,
+    roiPercent: 48,
     ...overrides,
   });
 }

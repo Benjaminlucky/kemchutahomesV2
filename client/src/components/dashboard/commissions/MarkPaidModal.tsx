@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { FormField, textInputClass } from "@/components/client-auth/FormField";
 import { useDashboardMutation } from "@/lib/useDashboardMutation";
 import { dashboardFetch } from "@/lib/dashboardFetch";
-
-function naira(n: number) {
-  return `₦${Math.round(n).toLocaleString()}`;
-}
+import { naira } from "./types";
 
 export default function MarkPaidModal({
   commissionIds,
@@ -20,13 +18,14 @@ export default function MarkPaidModal({
   commissionIds: string[];
   totalNet: number;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (message?: string) => void;
 }) {
   const [paymentRef, setPaymentRef] = useState("");
   const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const isBatch = commissionIds.length > 1;
 
-  const mutation = useDashboardMutation<unknown, void>({
+  const mutation = useDashboardMutation<{ message?: string }, void>({
     mutationFn: async () => {
       const res = isBatch
         ? await dashboardFetch("/api/commissions/pay-batch", {
@@ -46,10 +45,11 @@ export default function MarkPaidModal({
       if (!res.ok) throw new Error(data.message || "Failed to mark as paid");
       return data;
     },
-    onSuccess: () => {
-      onSuccess();
+    onSuccess: (data) => {
+      onSuccess(data.message);
       onClose();
     },
+    onError: (err) => setError(err instanceof Error ? err.message : "Failed to mark as paid"),
   });
 
   return (
@@ -61,6 +61,8 @@ export default function MarkPaidModal({
       </p>
 
       <div className="space-y-4">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+
         <FormField label="Payment reference (optional)">
           <input
             value={paymentRef}

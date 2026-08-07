@@ -10,10 +10,12 @@ import "./setup.js";
 import { Commission, CommissionTier } from "../models/Commission.model.js";
 import {
   calculateCommissions,
+  calculateBuy2SellCommissions,
   clawbackCommissions,
+  clawbackCommissionById,
   finalisePendingCommissions,
 } from "../utils/commissionCalculator.js";
-import { makeRealtor, makeSubscription } from "./fixtures.js";
+import { makeRealtor, makeSubscription, makeBuy2SellLead } from "./fixtures.js";
 
 describe("calculateCommissions", () => {
   it("creates one commission per level in the recruitment chain, with default tier percentages and 5% WHT", async () => {
@@ -89,6 +91,124 @@ describe("calculateCommissions", () => {
     expect(commission.grossAmount).toBe(200_000);
     expect(commission.whtAmount).toBe(20_000); // 10% of gross
     expect(commission.netAmount).toBe(180_000);
+  });
+
+  it("stops walking the hierarchy on a cyclic recruitedBy chain instead of paying one realtor multiple levels", async () => {
+    const a = await makeRealtor();
+    const b = await makeRealtor({ recruitedBy: a._id });
+    // Close the loop: a was recruited by b, b was recruited by a.
+    await a.updateOne({ recruitedBy: b._id });
+
+    const sub = await makeSubscription({ totalAmount: 1_000_000, realtorId: a._id });
+    const created = await calculateCommissions(sub._id, a._id);
+
+    // Without the cycle guard this would keep alternating a→b→a→b for all 4
+    // levels. The chain must stop the second time either realtor reappears.
+    expect(created).toHaveLength(2);
+    const realtorIds = created.map((c) => c.realtorId.toString());
+    expect(new Set(realtorIds).size).toBe(2);
+    expect(realtorIds).toContain(a._id.toString());
+    expect(realtorIds).toContain(b._id.toString());
+  });
+
+  it("does not double-create commissions when called concurrently for the same subscription (unique index enforced)", async () => {
+    const realtor = await makeRealtor();
+    const sub = await makeSubscription({ totalAmount: 2_000_000, realtorId: realtor._id });
+
+    // Two "simultaneous" calls racing past the in-code findOne pre-check —
+    // the partial unique index on {subscriptionId, realtorId, level} is what
+    // actually prevents a duplicate, not the pre-check alone.
+    const [first, second] = await Promise.all([
+      calculateCommissions(sub._id, realtor._id),
+      calculateCommissions(sub._id, realtor._id),
+    ]);
+
+    const totalCreated = first.length + second.length;
+    expect(totalCreated).toBe(1); // exactly one L1 commission created between both calls
+    expect(await Commission.countDocuments({ subscriptionId: sub._id })).toBe(1);
+  });
+});
+
+describe("calculateBuy2SellCommissions", () => {
+  it("creates commissions from a Buy2Sell investment's principal, tagged with sourceType 'buy2sell'", async () => {
+    const realtor = await makeRealtor();
+    const lead = await makeBuy2SellLead({ principalAmount: 5_000_000, realtorId: realtor._id });
+
+    const created = await calculateBuy2SellCommissions(lead._id, realtor._id);
+
+    expect(created).toHaveLength(1);
+    expect(created[0].sourceType).toBe("buy2sell");
+    expect(created[0].buy2sellId.toString()).toBe(lead._id.toString());
+    expect(created[0].subscriptionId).toBeFalsy();
+    expect(created[0].percent).toBe(10); // default L1
+    expect(created[0].grossAmount).toBe(500_000); // 10% of 5,000,000
+    expect(created[0].whtAmount).toBe(25_000); // 5% of gross
+    expect(created[0].netAmount).toBe(475_000);
+  });
+
+  it("is idempotent per {buy2sellId, realtorId, level}, independently of any Lands commission on the same realtor", async () => {
+    const realtor = await makeRealtor();
+    const lead = await makeBuy2SellLead({ realtorId: realtor._id });
+    const sub = await makeSubscription({ realtorId: realtor._id });
+
+    await calculateCommissions(sub._id, realtor._id);
+    await calculateBuy2SellCommissions(lead._id, realtor._id);
+    const secondCall = await calculateBuy2SellCommissions(lead._id, realtor._id);
+
+    expect(secondCall).toHaveLength(0);
+    expect(await Commission.countDocuments({ realtorId: realtor._id })).toBe(2); // one per product
+  });
+
+  it("creates nothing when the investment has no linked realtor", async () => {
+    const lead = await makeBuy2SellLead();
+    const created = await calculateBuy2SellCommissions(lead._id, null);
+    expect(created).toHaveLength(0);
+  });
+});
+
+describe("clawbackCommissionById", () => {
+  it("reverses a pending or approved commission and records the reason", async () => {
+    const realtor = await makeRealtor();
+    const commission = await Commission.create({
+      realtorId: realtor._id,
+      realtorName: "A B",
+      realtorEmail: "a@b.com",
+      sourceType: "subscription",
+      saleAmount: 100,
+      level: 1,
+      percent: 10,
+      grossAmount: 100,
+      netAmount: 95,
+      status: "approved",
+    });
+
+    const result = await clawbackCommissionById(commission._id, "Duplicate entry", "admin@khl.com");
+
+    expect(result.status).toBe("clawedback");
+    expect(result.clawbackReason).toBe("Duplicate entry");
+    expect(result.clawbackAt).toBeTruthy();
+  });
+
+  it("refuses to reverse a commission that has already been paid", async () => {
+    const realtor = await makeRealtor();
+    const commission = await Commission.create({
+      realtorId: realtor._id,
+      realtorName: "A B",
+      realtorEmail: "a@b.com",
+      sourceType: "subscription",
+      saleAmount: 100,
+      level: 1,
+      percent: 10,
+      grossAmount: 100,
+      netAmount: 95,
+      status: "paid",
+      paidAt: new Date(),
+    });
+
+    const result = await clawbackCommissionById(commission._id, "Mistake");
+
+    expect(result).toBeNull();
+    expect((await Commission.findById(commission._id)).status).toBe("paid");
   });
 });
 

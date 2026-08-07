@@ -15,6 +15,7 @@ import {
 } from "../utils/pdfGenerator.js";
 import { sendEmail, sendSMS } from "../utils/notifications.js";
 import { getActiveBankAccounts } from "./Bankaccount.controller.js";
+import { calculateBuy2SellCommissions } from "../utils/commissionCalculator.js";
 
 // ── :id guard ────────────────────────────────────────────────────────────────
 // Mirrors estate.controller.js's rejectedInvalidId — without it, a malformed
@@ -218,6 +219,7 @@ export const submitBuy2SellLead = async (req, res) => {
       idType,
       idNumber,
       idDocumentUrl,
+      realtorId,
     } = req.body;
 
     if (!fullName?.trim() || !email?.trim() || !phone?.trim())
@@ -277,6 +279,7 @@ export const submitBuy2SellLead = async (req, res) => {
       expectedROI: roi_amount,
       expectedPayout: total_payout,
       clientId: existingClient?._id || null, // ← link if account exists
+      realtorId: realtorId || null,
       dateOfBirth: dateOfBirth || null,
       gender: gender || "",
       nationality: nationality || "Nigerian",
@@ -467,7 +470,10 @@ export const getAllLeads = async (req, res) => {
 export const getLeadById = async (req, res) => {
   if (rejectedInvalidId(req, res)) return;
   try {
-    const lead = await Buy2SellLead.findById(req.params.id);
+    const lead = await Buy2SellLead.findById(req.params.id).populate(
+      "realtorId",
+      "firstName lastName referralCode",
+    );
     if (!lead) return res.status(404).json({ message: "Investment not found" });
     res.json(lead); // virtuals included via toJSON
   } catch (err) {
@@ -566,6 +572,17 @@ export const recordPayment = async (req, res) => {
       update,
       { new: true },
     );
+
+    // Fires only on the transition into "active" (full principal received) —
+    // Buy2Sell has no partial-payment commission risk the way an instalment
+    // Subscription does, since activation already requires the full amount.
+    // Placed after the lead write (not before) so a commission can never be
+    // created for a payment that failed to persist.
+    if (newStatus === "active" && updatedLead.realtorId) {
+      calculateBuy2SellCommissions(updatedLead._id, updatedLead.realtorId).catch(
+        (e) => console.error("Buy2Sell commission calc error:", e.message),
+      );
+    }
 
     const banks = await getActiveBankAccounts();
 

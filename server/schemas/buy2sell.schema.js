@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { email } from "./common.js";
+import { email, objectId } from "./common.js";
 
 export const updateROISettingsSchema = z.object({
   roiPercent6Months: z.coerce.number().min(0).optional(),
@@ -16,6 +16,10 @@ export const submitBuy2SellLeadSchema = z.object({
   phone: z.string().trim().min(1, "Phone is required"),
   duration: z.enum(["6 Months", "12 Months", "18 Months"]),
   principalAmount: z.coerce.number().positive("Investment amount is required"),
+  // Matches createSubscriptionSchema's realtorId contract exactly — whichever
+  // caller resolves a referral code to a realtor id is responsible for
+  // passing it here.
+  realtorId: objectId.optional(),
   dateOfBirth: z.coerce.date().optional(),
   gender: z.string().trim().optional(),
   nationality: z.string().trim().optional(),

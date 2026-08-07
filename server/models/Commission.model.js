@@ -44,15 +44,34 @@ const commissionSchema = new mongoose.Schema(
     realtorName: { type: String, required: true },
     realtorEmail: { type: String, required: true },
 
+    // ── Which product generated this commission ───────────────────────────
+    // Defaults to "subscription" so every pre-existing row (created before
+    // this field existed) reads correctly without a data migration.
+    sourceType: {
+      type: String,
+      enum: ["subscription", "buy2sell"],
+      default: "subscription",
+    },
+
     // ── The sale that triggered this commission ───────────────────────────
+    // Exactly one of these two is set, matching sourceType. subscriptionId is
+    // optional (not required) specifically so a buy2sell-sourced commission
+    // can be saved — it was previously required, which made a Buy2Sell
+    // commission structurally impossible to create.
     subscriptionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subscription",
-      required: true,
+      default: null,
+    },
+    buy2sellId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Buy2SellLead",
+      default: null,
     },
     referenceNumber: { type: String },
-    estateName: { type: String },
-    saleAmount: { type: Number, required: true }, // total subscription value
+    estateName: { type: String }, // Lands-only; kept for back-compat with existing rows/queries
+    saleLabel: { type: String }, // generic display label for either product
+    saleAmount: { type: Number, required: true }, // total subscription value, or Buy2Sell principal
 
     // ── Commission calculation ────────────────────────────────────────────
     level: { type: Number, enum: [1, 2, 3, 4], required: true },
@@ -93,8 +112,27 @@ const commissionSchema = new mongoose.Schema(
 
 commissionSchema.index({ realtorId: 1, status: 1 });
 commissionSchema.index({ subscriptionId: 1 });
+commissionSchema.index({ buy2sellId: 1 });
+commissionSchema.index({ sourceType: 1, status: 1 });
 commissionSchema.index({ status: 1, createdAt: -1 });
 commissionSchema.index({ finalAt: 1 }); // for cron: finding finalised commissions
+
+// Idempotency at the database level — one commission per {sale, realtor,
+// level}. Two partial unique indexes (rather than one on a synthetic
+// combined field) because exactly one of subscriptionId/buy2sellId is set
+// per row; a partial filter keeps each index from being confused by rows
+// from the other product. This is what makes calculateCommissions/
+// calculateBuy2SellCommissions' duplicate-key handling actually safe under
+// concurrent or retried calls — the in-code findOne pre-check alone has a
+// race window, this index is the real guarantee.
+commissionSchema.index(
+  { subscriptionId: 1, realtorId: 1, level: 1 },
+  { unique: true, partialFilterExpression: { subscriptionId: { $type: "objectId" } } },
+);
+commissionSchema.index(
+  { buy2sellId: 1, realtorId: 1, level: 1 },
+  { unique: true, partialFilterExpression: { buy2sellId: { $type: "objectId" } } },
+);
 
 export const CommissionTier =
   mongoose.models.CommissionTier ||

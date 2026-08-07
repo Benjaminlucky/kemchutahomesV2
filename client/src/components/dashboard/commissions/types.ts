@@ -2,9 +2,20 @@
 // tones/labels/level labels are identical concepts, just consumed from a
 // different endpoint (admin-wide ledger vs. a realtor's own `/my` records),
 // so they're re-exported rather than redefined here.
-export { COMMISSION_STATUSES, STATUS_TONE, statusLabel, LEVEL_LABELS } from "../earnings/types";
-export type { CommissionStatus } from "../earnings/types";
-import type { CommissionStatus } from "../earnings/types";
+export {
+  COMMISSION_STATUSES,
+  STATUS_TONE,
+  statusTone,
+  statusLabel,
+  LEVEL_LABELS,
+  SOURCE_TYPES,
+  SOURCE_LABELS,
+  sourceLabel,
+  naira,
+  fmtDate,
+} from "../earnings/types";
+export type { CommissionStatus, SourceType } from "../earnings/types";
+import type { CommissionStatus, SourceType } from "../earnings/types";
 
 export type CommissionRealtor = {
   _id: string;
@@ -22,8 +33,12 @@ export type AdminCommission = {
   realtorId: CommissionRealtor | string | null;
   realtorName: string;
   realtorEmail: string;
+  sourceType?: SourceType;
+  subscriptionId?: string;
+  buy2sellId?: string;
   referenceNumber?: string;
   estateName?: string;
+  saleLabel?: string;
   saleAmount: number;
   level: 1 | 2 | 3 | 4;
   percent: number;
@@ -35,6 +50,9 @@ export type AdminCommission = {
   paidBy?: string;
   paymentRef?: string;
   finalAt?: string | null;
+  clawbackAt?: string | null;
+  clawbackReason?: string;
+  notes?: string;
   createdAt: string;
 };
 
@@ -43,6 +61,7 @@ export type CommissionSummary = {
   approvedAmount: number;
   paidAmount: number;
   clawedbackAmount: number;
+  whtAmount: number;
 };
 
 export type AdminCommissionListResponse = {

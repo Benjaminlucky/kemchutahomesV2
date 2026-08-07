@@ -1,44 +1,38 @@
 /**
  * controllers/commission.controller.js
  * ─────────────────────────────────────────────────────────────────────────────
- * Handles the 4-level MLM commission system for KHL realtors.
- *
- * Called automatically from subscription.controller when status → "approved"
- * AND when payment is fully confirmed.
+ * Handles the 4-level MLM commission system for KHL realtors, across both
+ * commission-generating products (Lands/Subscriptions and Buy2Sell).
  *
  * Commission chain:
- *   Level 1 → the realtor who made the direct sale (subscriptionRealtorId)
+ *   Level 1 → the realtor who made the direct sale
  *   Level 2 → Level 1's recruiter (recruitedBy)
  *   Level 3 → Level 2's recruiter
  *   Level 4 → Level 3's recruiter
  *
- * WHT (Withholding Tax) at 5% deducted from each commission before payout.
- * Clawback: if subscription reversed within clawbackDays, commissions are voided.
+ * WHT (Withholding Tax) deducted from each commission before payout, at the
+ * admin-configured rate. Clawback: automatic on subscription rejection
+ * (clawbackCommissions), or manual via clawbackCommission below — the only
+ * reversal path for Buy2Sell, which has no rejected/cancelled state.
+ *
+ * Calculation itself (calculateCommissions, calculateBuy2SellCommissions,
+ * clawbackCommissions, clawbackCommissionById, finalisePendingCommissions,
+ * getTiers) lives in ../utils/commissionCalculator.js — imported directly by
+ * subscription.controller.js / Buy2sell.controller.js / followUp.js, not
+ * re-exported from here.
  */
 
+import { isValidObjectId, Types } from "mongoose";
 import { Commission, CommissionTier } from "../models/Commission.model.js";
-// Calculation helpers live in a separate utility to avoid any import order issues
-import {
-  calculateCommissions,
-  clawbackCommissions,
-  finalisePendingCommissions,
-} from "../utils/commissionCalculator.js";
+import { getTiers, clawbackCommissionById } from "../utils/commissionCalculator.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
-export {
-  calculateCommissions,
-  clawbackCommissions,
-  finalisePendingCommissions,
+// ── :id guard ────────────────────────────────────────────────────────────────
+const rejectedInvalidId = (req, res) => {
+  if (isValidObjectId(req.params.id)) return false;
+  res.status(400).json({ message: "Invalid commission ID" });
+  return true;
 };
-
-// Local helper for the HTTP tier controllers below
-async function getTiers() {
-  let tier = await CommissionTier.findOne({ singleton: "global" }).lean();
-  if (!tier) {
-    const c = await CommissionTier.create({ singleton: "global" });
-    tier = c.toObject();
-  }
-  return tier;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HTTP CONTROLLERS
@@ -47,11 +41,20 @@ async function getTiers() {
 // GET /api/commissions — admin: all commissions with filters
 export const getAllCommissions = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, realtorId, level } = req.query;
+    const { page = 1, limit = 20, status, realtorId, level, sourceType, search } = req.query;
     const filter = {};
     if (status) filter.status = status;
-    if (realtorId) filter.realtorId = realtorId;
-    if (level) filter.level = Number(level);
+    if (realtorId && isValidObjectId(realtorId)) filter.realtorId = realtorId;
+    if (level && [1, 2, 3, 4].includes(Number(level))) filter.level = Number(level);
+    if (sourceType === "subscription" || sourceType === "buy2sell") filter.sourceType = sourceType;
+    if (search) {
+      const safeSearch = escapeRegex(String(search).slice(0, 100));
+      filter.$or = [
+        { realtorName: { $regex: safeSearch, $options: "i" } },
+        { realtorEmail: { $regex: safeSearch, $options: "i" } },
+        { referenceNumber: { $regex: safeSearch, $options: "i" } },
+      ];
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
     const [commissions, total] = await Promise.all([
@@ -67,23 +70,26 @@ export const getAllCommissions = async (req, res) => {
       Commission.countDocuments(filter),
     ]);
 
-    // Totals by status
-    const [pending, approved, paid, clawedback] = await Promise.all([
+    // Summary aggregates now respect the active realtor/level/product/search
+    // scope (status itself is deliberately excluded from the scope so all
+    // four status buckets remain visible together) — previously these were
+    // always system-wide regardless of what the admin had filtered to,
+    // so the stat cards could never be made to agree with the table below
+    // them. whtAmount is aggregated across the same scope for tax-remittance
+    // reporting, which previously had no rollup anywhere.
+    const { status: _ignoredStatus, ...scopedFilter } = filter;
+    const sumBy = (extra) => [
+      { $match: { ...scopedFilter, ...extra } },
+      { $group: { _id: null, total: { $sum: "$netAmount" } } },
+    ];
+    const [pending, approved, paid, clawedback, wht] = await Promise.all([
+      Commission.aggregate(sumBy({ status: "pending" })),
+      Commission.aggregate(sumBy({ status: "approved" })),
+      Commission.aggregate(sumBy({ status: "paid" })),
+      Commission.aggregate(sumBy({ status: "clawedback" })),
       Commission.aggregate([
-        { $match: { status: "pending" } },
-        { $group: { _id: null, total: { $sum: "$netAmount" } } },
-      ]),
-      Commission.aggregate([
-        { $match: { status: "approved" } },
-        { $group: { _id: null, total: { $sum: "$netAmount" } } },
-      ]),
-      Commission.aggregate([
-        { $match: { status: "paid" } },
-        { $group: { _id: null, total: { $sum: "$netAmount" } } },
-      ]),
-      Commission.aggregate([
-        { $match: { status: "clawedback" } },
-        { $group: { _id: null, total: { $sum: "$netAmount" } } },
+        { $match: scopedFilter },
+        { $group: { _id: null, total: { $sum: "$whtAmount" } } },
       ]),
     ]);
 
@@ -97,9 +103,11 @@ export const getAllCommissions = async (req, res) => {
         approvedAmount: approved[0]?.total || 0,
         paidAmount: paid[0]?.total || 0,
         clawedbackAmount: clawedback[0]?.total || 0,
+        whtAmount: wht[0]?.total || 0,
       },
     });
   } catch (err) {
+    console.error("getAllCommissions:", err);
     res.status(500).json({ message: "Failed to fetch commissions" });
   }
 };
@@ -107,10 +115,14 @@ export const getAllCommissions = async (req, res) => {
 // GET /api/commissions/my — realtor: their own commissions
 export const getMyCommissions = async (req, res) => {
   try {
+    if (req.user?.role !== "realtor") {
+      return res.status(403).json({ message: "Realtor account required." });
+    }
     const realtorId = req.user?._id || req.user?.id;
-    const { page = 1, limit = 20, status } = req.query;
+    const { page = 1, limit = 20, status, sourceType } = req.query;
     const filter = { realtorId };
     if (status) filter.status = status;
+    if (sourceType === "subscription" || sourceType === "buy2sell") filter.sourceType = sourceType;
 
     const skip = (Number(page) - 1) * Number(limit);
     const [commissions, total] = await Promise.all([
@@ -122,20 +134,32 @@ export const getMyCommissions = async (req, res) => {
       Commission.countDocuments(filter),
     ]);
 
-    // Cast to ObjectId for aggregate pipeline
-    const { Types } = await import("mongoose");
     const oid = new Types.ObjectId(String(realtorId));
+    const sourceMatch = filter.sourceType ? { sourceType: filter.sourceType } : {};
 
-    const totals = await Commission.aggregate([
-      { $match: { realtorId: oid } },
-      {
-        $group: {
-          _id: "$status",
-          totalNet: { $sum: "$netAmount" },
-          totalGross: { $sum: "$grossAmount" },
-          count: { $sum: 1 },
+    const [totals, levelTotals] = await Promise.all([
+      Commission.aggregate([
+        { $match: { realtorId: oid, ...sourceMatch } },
+        {
+          $group: {
+            _id: "$status",
+            totalNet: { $sum: "$netAmount" },
+            totalGross: { $sum: "$grossAmount" },
+            count: { $sum: 1 },
+          },
         },
-      },
+      ]),
+      // Server-side per-level breakdown — the client previously computed
+      // this from whatever page happened to be loaded (15 rows), silently
+      // wrong the moment there was more than one page. Clawed-back
+      // commissions are excluded, matching "Total Earned" excluding them too:
+      // money that was reversed was never actually earned. Respects the same
+      // product filter as the list itself, so switching to "Buy2Sell" also
+      // updates this breakdown instead of leaving it Lands-inclusive.
+      Commission.aggregate([
+        { $match: { realtorId: oid, ...sourceMatch, status: { $ne: "clawedback" } } },
+        { $group: { _id: "$level", total: { $sum: "$netAmount" }, count: { $sum: 1 } } },
+      ]),
     ]);
 
     res.json({
@@ -144,6 +168,7 @@ export const getMyCommissions = async (req, res) => {
       page: Number(page),
       pages: Math.ceil(total / Number(limit)),
       totals,
+      levelTotals,
     });
   } catch (err) {
     console.error("getMyCommissions:", err);
@@ -151,12 +176,18 @@ export const getMyCommissions = async (req, res) => {
   }
 };
 
-// PATCH /api/commissions/:id/pay — admin marks as paid
+// PATCH /api/commissions/:id/pay — admin marks a single commission as paid
 export const markCommissionPaid = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const { paymentRef, note } = req.body;
-    const commission = await Commission.findByIdAndUpdate(
-      req.params.id,
+    // Requiring status: "approved" here is the fix — without it this endpoint
+    // could mark a pending commission paid (skipping the clawback window
+    // entirely), resurrect an already-clawed-back one, or silently overwrite
+    // the paidAt/paidBy/paymentRef audit trail of an already-paid one. The
+    // batch endpoint below already had this guard; the single-pay path didn't.
+    const commission = await Commission.findOneAndUpdate(
+      { _id: req.params.id, status: "approved" },
       {
         status: "paid",
         paidAt: new Date(),
@@ -166,11 +197,39 @@ export const markCommissionPaid = async (req, res) => {
       },
       { new: true },
     );
-    if (!commission)
-      return res.status(404).json({ message: "Commission not found" });
+    if (!commission) {
+      const exists = await Commission.exists({ _id: req.params.id });
+      if (!exists) return res.status(404).json({ message: "Commission not found" });
+      return res.status(400).json({
+        message: "Only approved commissions can be marked paid.",
+      });
+    }
     res.json({ message: "Commission marked as paid", commission });
   } catch (err) {
     res.status(500).json({ message: "Failed to update commission" });
+  }
+};
+
+// PATCH /api/commissions/:id/clawback — admin manually reverses a commission
+// The only reversal path for Buy2Sell (no rejected/cancelled state to hang an
+// automatic clawback off), and also covers Lands cases the automatic
+// subscription-rejection clawback doesn't reach: a defaulted instalment plan,
+// a duplicate, or a mis-attributed realtor.
+export const clawbackCommission = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
+  try {
+    const { reason } = req.body;
+    const commission = await clawbackCommissionById(req.params.id, reason, req.user?.email);
+    if (!commission) {
+      const exists = await Commission.exists({ _id: req.params.id });
+      if (!exists) return res.status(404).json({ message: "Commission not found" });
+      return res.status(400).json({
+        message: "Only pending or approved commissions can be clawed back.",
+      });
+    }
+    res.json({ message: "Commission clawed back", commission });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to claw back commission" });
   }
 };
 
@@ -190,13 +249,28 @@ export const payCommissionBatch = async (req, res) => {
         paymentRef: paymentRef || "",
       },
     );
-    res.json({ message: `${result.modifiedCount} commissions marked as paid` });
+
+    // Some ids can legitimately fail to match (already paid/clawed back by
+    // another admin, or by a concurrent request, between selection and
+    // confirm) — report the real outcome instead of a blanket success
+    // message so the admin doesn't reconcile against a payout that didn't
+    // fully happen.
+    const skipped = ids.length - result.modifiedCount;
+    res.json({
+      message:
+        skipped > 0
+          ? `${result.modifiedCount} of ${ids.length} commissions marked as paid — ${skipped} were no longer approved and were skipped.`
+          : `${result.modifiedCount} commission${result.modifiedCount === 1 ? "" : "s"} marked as paid`,
+      modifiedCount: result.modifiedCount,
+      requestedCount: ids.length,
+    });
   } catch (err) {
     res.status(500).json({ message: "Failed to batch-pay commissions" });
   }
 };
 
-// GET /api/commissions/tiers — get tier settings
+// GET /api/commissions/tiers — get tier settings (admin: full read/write;
+// realtors get read-only access via the same handler, gated in the route)
 export const getCommissionTiers = async (req, res) => {
   try {
     const tiers = await getTiers();

@@ -59,6 +59,15 @@ const buy2SellLeadSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Referring realtor, if this investment was attributed to one — mirrors
+    // Subscription.model.js's realtorId exactly, and is what makes a Buy2Sell
+    // commission possible to calculate at all.
+    realtorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Realtor",
+      default: null,
+    },
+
     // KYC
     fullName: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true, lowercase: true },
@@ -104,6 +113,7 @@ const buy2SellLeadSchema = new mongoose.Schema(
 buy2SellLeadSchema.index({ email: 1 });
 buy2SellLeadSchema.index({ status: 1, createdAt: -1 });
 buy2SellLeadSchema.index({ maturityDate: 1, status: 1 });
+buy2SellLeadSchema.index({ realtorId: 1 });
 
 buy2SellLeadSchema.virtual("maturityProgressPercent").get(function () {
   if (!this.investmentDate || !this.maturityDate) return 0;
