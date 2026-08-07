@@ -17,8 +17,14 @@ import {
   MessageSquare,
 } from "lucide-react";
 // lucide-react 1.x dropped trademarked brand icons — pulled from
-// react-icons (already a dependency) for these three instead.
-import { FaInstagram, FaFacebook, FaXTwitter } from "react-icons/fa6";
+// react-icons (already a dependency) for these instead.
+import {
+  FaInstagram,
+  FaFacebook,
+  FaXTwitter,
+  FaWhatsapp,
+  FaYoutube,
+} from "react-icons/fa6";
 import type { Branch } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics";
 
@@ -32,14 +38,14 @@ type DisplayBranch = {
   label: string;
   badge: string;
   badgeColor: string;
+  isHQ: boolean;
   address: string;
-  phone: string;
-  phone2: string;
-  email: string;
-  hours: string;
-  hours2: string;
+  phones: string[];
+  emails: string[];
+  hours: { weekdays: string; saturday: string; sunday: string };
   mapSrc: string;
   mapLink: string;
+  social: Branch["social"];
   accentGrad: string;
   icon: ComponentType<{ size?: number; color?: string }>;
 };
@@ -50,14 +56,18 @@ function shapeBranches(branches: Branch[]): DisplayBranch[] {
     label: b.label,
     badge: b.isHQ ? "Headquarters" : "Branch Office",
     badgeColor: b.isHQ ? PURPLE : "#059669",
+    isHQ: b.isHQ,
     address: b.address || "",
-    phone: b.phones?.[0] || "",
-    phone2: b.phones?.[1] || "",
-    email: b.emails?.[0] || "",
-    hours: b.hours?.weekdays || "",
-    hours2: b.hours?.saturday || "",
+    phones: (b.phones || []).filter(Boolean),
+    emails: (b.emails || []).filter(Boolean),
+    hours: {
+      weekdays: b.hours?.weekdays || "",
+      saturday: b.hours?.saturday || "",
+      sunday: b.hours?.sunday || "",
+    },
     mapSrc: b.mapEmbedUrl || "",
     mapLink: b.mapLink || "",
+    social: b.social || {},
     accentGrad: b.isHQ
       ? `linear-gradient(135deg, ${PURPLE_DARK} 0%, ${PURPLE} 100%)`
       : "linear-gradient(135deg,#065f46 0%,#059669 100%)",
@@ -65,26 +75,26 @@ function shapeBranches(branches: Branch[]): DisplayBranch[] {
   }));
 }
 
-const SOCIAL_LINKS = [
-  {
-    icon: FaInstagram,
-    label: "Instagram",
-    href: "https://instagram.com/kemchutahomesltd",
-    color: "#e1306c",
-  },
-  {
-    icon: FaFacebook,
-    label: "Facebook",
-    href: "https://facebook.com/kemchutahomes",
-    color: "#1877f2",
-  },
-  {
-    icon: FaXTwitter,
-    label: "X / Twitter",
-    href: "https://twitter.com/kemchutahomes",
-    color: "#000000",
-  },
-];
+// The company's socials are set per-branch in the admin ("Contact Info")
+// panel, but there's only one "Follow Us" block on the page — resolve one
+// link per platform by preferring the HQ branch, falling back to whichever
+// other branch has that platform filled in, so admin edits actually reach
+// the live site instead of being silently ignored.
+const SOCIAL_PLATFORMS = [
+  { key: "instagram", icon: FaInstagram, label: "Instagram", color: "#e1306c" },
+  { key: "facebook", icon: FaFacebook, label: "Facebook", color: "#1877f2" },
+  { key: "twitter", icon: FaXTwitter, label: "X / Twitter", color: "#000000" },
+  { key: "whatsapp", icon: FaWhatsapp, label: "WhatsApp", color: "#25d366" },
+  { key: "youtube", icon: FaYoutube, label: "YouTube", color: "#ff0000" },
+] as const;
+
+function resolveSocialLinks(branches: DisplayBranch[]) {
+  const ordered = [...branches].sort((a, b) => Number(b.isHQ) - Number(a.isHQ));
+  return SOCIAL_PLATFORMS.map((platform) => {
+    const href = ordered.map((b) => b.social?.[platform.key]).find(Boolean);
+    return href ? { ...platform, href } : null;
+  }).filter((v): v is (typeof SOCIAL_PLATFORMS)[number] & { href: string } => v !== null);
+}
 
 const fadeUp = (delay = 0) => ({
   hidden: { opacity: 0, y: 36 },
@@ -273,30 +283,44 @@ function BranchCard({
           overflow: "hidden",
         }}
       >
-        {!mapLoaded && (
+        {branch.mapSrc ? (
+          <>
+            {!mapLoaded && (
+              <div
+                className="absolute inset-0 flex animate-pulse items-center justify-center"
+                style={{ background: "#f3f4f6", zIndex: 1 }}
+              >
+                <MapPin size={32} style={{ color: "#d1d5db" }} />
+              </div>
+            )}
+            <iframe
+              title={`${branch.label} office map`}
+              src={branch.mapSrc}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+                display: "block",
+                transition: "opacity 0.4s",
+                opacity: mapLoaded ? 1 : 0,
+              }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              onLoad={() => setMapLoaded(true)}
+            />
+          </>
+        ) : (
           <div
-            className="absolute inset-0 flex animate-pulse items-center justify-center"
-            style={{ background: "#f3f4f6", zIndex: 1 }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2"
+            style={{ background: "#f3f4f6" }}
           >
-            <MapPin size={32} style={{ color: "#d1d5db" }} />
+            <MapPin size={28} style={{ color: "#d1d5db" }} />
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#9ca3af" }}>
+              Map preview not available
+            </p>
           </div>
         )}
-        <iframe
-          title={`${branch.label} office map`}
-          src={branch.mapSrc}
-          style={{
-            width: "100%",
-            height: "100%",
-            border: "none",
-            display: "block",
-            transition: "opacity 0.4s",
-            opacity: mapLoaded ? 1 : 0,
-          }}
-          allowFullScreen
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          onLoad={() => setMapLoaded(true)}
-        />
       </div>
 
       <div style={{ padding: "24px 28px 28px", background: "#fff" }}>
@@ -308,53 +332,76 @@ function BranchCard({
             href={branch.mapLink}
             color={branch.badgeColor}
           />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {branch.phones.length > 0 && (
+            <div
+              className={
+                branch.phones.length > 1
+                  ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
+                  : ""
+              }
+            >
+              {branch.phones.slice(0, 2).map((phone, i) => (
+                <InfoRow
+                  key={phone}
+                  icon={Phone}
+                  label={branch.phones.length > 1 ? `Phone ${i + 1}` : "Phone"}
+                  value={phone}
+                  href={`tel:${phone.replace(/\s+/g, "")}`}
+                  color={branch.badgeColor}
+                />
+              ))}
+            </div>
+          )}
+          {branch.emails.length > 0 && (
+            <div
+              className={
+                branch.emails.length > 1
+                  ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
+                  : ""
+              }
+            >
+              {branch.emails.slice(0, 2).map((email, i) => (
+                <InfoRow
+                  key={email}
+                  icon={Mail}
+                  label={branch.emails.length > 1 ? `Email ${i + 1}` : "Email"}
+                  value={email}
+                  href={`mailto:${email}`}
+                  color={branch.badgeColor}
+                />
+              ))}
+            </div>
+          )}
+          {(branch.hours.weekdays || branch.hours.saturday || branch.hours.sunday) && (
             <InfoRow
-              icon={Phone}
-              label="Phone"
-              value={branch.phone}
-              href={`tel:${branch.phone}`}
+              icon={Clock}
+              label="Office Hours"
+              value={[branch.hours.weekdays, branch.hours.saturday, branch.hours.sunday]
+                .filter(Boolean)
+                .join("   ·   ")}
               color={branch.badgeColor}
             />
-            <InfoRow
-              icon={Phone}
-              label="Phone 2"
-              value={branch.phone2}
-              href={`tel:${branch.phone2}`}
-              color={branch.badgeColor}
-            />
-          </div>
-          <InfoRow
-            icon={Mail}
-            label="Email"
-            value={branch.email}
-            href={`mailto:${branch.email}`}
-            color={branch.badgeColor}
-          />
-          <InfoRow
-            icon={Clock}
-            label="Office Hours"
-            value={`${branch.hours}   ·   ${branch.hours2}`}
-            color={branch.badgeColor}
-          />
+          )}
         </div>
 
-        <a
-          href={branch.mapLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5"
-          style={{
-            background: `${branch.badgeColor}10`,
-            border: `1.5px solid ${branch.badgeColor}30`,
-            color: branch.badgeColor,
-            textDecoration: "none",
-          }}
-        >
-          <MapPin size={14} />
-          Get Directions
-          <ArrowRight size={13} />
-        </a>
+        {branch.mapLink && (
+          <a
+            href={branch.mapLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5"
+            style={{
+              background: `${branch.badgeColor}10`,
+              border: `1.5px solid ${branch.badgeColor}30`,
+              color: branch.badgeColor,
+              textDecoration: "none",
+            }}
+          >
+            <MapPin size={14} />
+            Get Directions
+            <ArrowRight size={13} />
+          </a>
+        )}
       </div>
     </motion.div>
   );
@@ -369,14 +416,21 @@ type ContactFormState = {
   branch: string;
 };
 
-function ContactForm({ isInView }: { isInView: boolean }) {
+function ContactForm({
+  isInView,
+  branches,
+}: {
+  isInView: boolean;
+  branches: DisplayBranch[];
+}) {
+  const defaultBranch = branches.find((b) => b.isHQ)?.label ?? branches[0]?.label ?? "";
   const [form, setForm] = useState<ContactFormState>({
     name: "",
     email: "",
     phone: "",
     subject: "",
     message: "",
-    branch: "Lagos",
+    branch: defaultBranch,
   });
   const [errors, setErrors] = useState<Partial<ContactFormState>>({});
   const [loading, setLoading] = useState(false);
@@ -586,7 +640,7 @@ function ContactForm({ isInView }: { isInView: boolean }) {
                   phone: "",
                   subject: "",
                   message: "",
-                  branch: "Lagos",
+                  branch: defaultBranch,
                 });
               }}
               className="mt-6 rounded-xl px-6 py-2.5 text-sm font-bold text-white transition-all hover:-translate-y-0.5"
@@ -739,8 +793,12 @@ function ContactForm({ isInView }: { isInView: boolean }) {
                   onFocus={(e) => focusOn(e)}
                   onBlur={(e) => focusOff(e)}
                 >
-                  <option value="Lagos">Lagos — Headquarters</option>
-                  <option value="Asaba">Asaba — Branch Office</option>
+                  {branches.length === 0 && <option value="">General Enquiry</option>}
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.label}>
+                      {b.label} — {b.badge}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -983,6 +1041,10 @@ const FAQS = [
 
 export default function Contact({ branches }: { branches: Branch[] }) {
   const displayBranches = shapeBranches(branches);
+  const socialLinks = resolveSocialLinks(displayBranches);
+  const hqBranch = displayBranches.find((b) => b.isHQ) ?? displayBranches[0];
+  const heroPhone = hqBranch?.phones[0] ?? "";
+  const heroEmail = hqBranch?.emails[0] ?? "info@kemchutahomesltd.com";
   const heroRef = useRef(null);
   const officesRef = useRef(null);
   const formRef = useRef(null);
@@ -1104,7 +1166,11 @@ export default function Contact({ branches }: { branches: Branch[] }) {
             transition={{ duration: 0.8, delay: 0.12 }}
           >
             Whether you want to invest, book an inspection, or simply ask a
-            question — our team across both offices is ready to help.
+            question — our team{" "}
+            {displayBranches.length > 1
+              ? `across all ${displayBranches.length} offices`
+              : ""}{" "}
+            is ready to help.
           </motion.p>
 
           <motion.div
@@ -1113,19 +1179,21 @@ export default function Contact({ branches }: { branches: Branch[] }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2 }}
           >
+            {heroPhone && (
+              <a
+                href={`tel:${heroPhone.replace(/\s+/g, "")}`}
+                className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-white transition-all hover:-translate-y-0.5"
+                style={{
+                  background: `linear-gradient(135deg,${PURPLE_DARK},${PURPLE})`,
+                  boxShadow: "0 6px 20px rgba(112,12,235,0.4)",
+                  textDecoration: "none",
+                }}
+              >
+                <Phone size={14} /> Call {hqBranch?.label} {hqBranch?.isHQ ? "HQ" : ""}
+              </a>
+            )}
             <a
-              href="tel:+2348000000001"
-              className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-white transition-all hover:-translate-y-0.5"
-              style={{
-                background: `linear-gradient(135deg,${PURPLE_DARK},${PURPLE})`,
-                boxShadow: "0 6px 20px rgba(112,12,235,0.4)",
-                textDecoration: "none",
-              }}
-            >
-              <Phone size={14} /> Call Lagos HQ
-            </a>
-            <a
-              href="mailto:info@kemchutahomesltd.com"
+              href={`mailto:${heroEmail}`}
               className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold transition-all hover:-translate-y-0.5"
               style={{
                 background: "rgba(255,255,255,0.08)",
@@ -1172,7 +1240,7 @@ export default function Contact({ branches }: { branches: Branch[] }) {
         <div className="mx-auto w-11/12 py-6 md:w-10/12">
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
-              { val: "2", label: "Office Locations" },
+              { val: String(displayBranches.length), label: "Office Locations" },
               { val: "< 24h", label: "Response Time" },
               { val: "Mon–Sat", label: "We're Available" },
               { val: "5,000+", label: "Happy Clients" },
@@ -1318,64 +1386,65 @@ export default function Contact({ branches }: { branches: Branch[] }) {
               </p>
 
               <div className="mb-8 space-y-4">
-                <InfoRow
-                  icon={Phone}
-                  label="Lagos HQ"
-                  value="+234 800 000 0001"
-                  href="tel:+2348000000001"
-                />
-                <InfoRow
-                  icon={Phone}
-                  label="Asaba Branch"
-                  value="+234 800 000 0003"
-                  href="tel:+2348000000003"
-                />
+                {displayBranches.map((b) =>
+                  b.phones[0] ? (
+                    <InfoRow
+                      key={b.id}
+                      icon={Phone}
+                      label={b.isHQ ? `${b.label} HQ` : `${b.label} Branch`}
+                      value={b.phones[0]}
+                      href={`tel:${b.phones[0].replace(/\s+/g, "")}`}
+                    />
+                  ) : null,
+                )}
                 <InfoRow
                   icon={Mail}
                   label="General Email"
-                  value="info@kemchutahomesltd.com"
-                  href="mailto:info@kemchutahomesltd.com"
+                  value={heroEmail}
+                  href={`mailto:${heroEmail}`}
                 />
               </div>
 
-              <div>
-                <p
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "#9ca3af",
-                    letterSpacing: "0.09em",
-                    textTransform: "uppercase",
-                    marginBottom: 12,
-                  }}
-                >
-                  Follow Us
-                </p>
-                <div className="flex gap-3">
-                  {SOCIAL_LINKS.map(({ icon: Icon, label, href, color }) => (
-                    <a
-                      key={label}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={label}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl transition-all hover:-translate-y-1"
-                      style={{
-                        background: `${color}12`,
-                        border: `1px solid ${color}25`,
-                        color,
-                        textDecoration: "none",
-                      }}
-                    >
-                      <Icon size={17} />
-                    </a>
-                  ))}
+              {socialLinks.length > 0 && (
+                <div>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#9ca3af",
+                      letterSpacing: "0.09em",
+                      textTransform: "uppercase",
+                      marginBottom: 12,
+                    }}
+                  >
+                    Follow Us
+                  </p>
+                  <div className="flex gap-3">
+                    {socialLinks.map(({ icon: Icon, label, href, color }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={label}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl transition-all hover:-translate-y-1"
+                        style={{
+                          background: `${color}12`,
+                          border: `1px solid ${color}25`,
+                          color,
+                          textDecoration: "none",
+                        }}
+                      >
+                        <Icon size={17} />
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
 
             <div className="lg:col-span-3">
-              <ContactForm isInView={formInView} />
+              <ContactForm isInView={formInView} branches={displayBranches} />
             </div>
           </div>
         </div>
@@ -1509,18 +1578,20 @@ export default function Contact({ branches }: { branches: Branch[] }) {
             >
               Explore Estates <ArrowRight size={15} />
             </Link>
-            <a
-              href="tel:+2348000000001"
-              className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-black tracking-widest uppercase transition-all hover:-translate-y-0.5"
-              style={{
-                background: "rgba(255,255,255,0.12)",
-                border: "1.5px solid rgba(255,255,255,0.3)",
-                color: "#fff",
-                textDecoration: "none",
-              }}
-            >
-              <Phone size={14} /> Call Us Now
-            </a>
+            {heroPhone && (
+              <a
+                href={`tel:${heroPhone.replace(/\s+/g, "")}`}
+                className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-black tracking-widest uppercase transition-all hover:-translate-y-0.5"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1.5px solid rgba(255,255,255,0.3)",
+                  color: "#fff",
+                  textDecoration: "none",
+                }}
+              >
+                <Phone size={14} /> Call Us Now
+              </a>
+            )}
           </div>
         </div>
       </section>

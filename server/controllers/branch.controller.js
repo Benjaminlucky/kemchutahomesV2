@@ -85,7 +85,9 @@ export const getAllBranches = async (req, res) => {
 // ── GET /api/branches/:id  (public) ──────────────────────────────────────────
 export const getBranch = async (req, res) => {
   try {
-    const branch = await Branch.findOne({ branchId: req.params.id }).lean();
+    const branch = await Branch.findOne({
+      branchId: req.params.id.toLowerCase(),
+    }).lean();
     if (!branch) return res.status(404).json({ message: "Branch not found" });
     res.json(branch);
   } catch (err) {
@@ -122,7 +124,7 @@ export const updateBranch = async (req, res) => {
     if (isActive !== undefined) update.isActive = Boolean(isActive);
 
     const branch = await Branch.findOneAndUpdate(
-      { branchId: req.params.id },
+      { branchId: req.params.id.toLowerCase() },
       { $set: update },
       { new: true, runValidators: true },
     );
@@ -182,6 +184,13 @@ export const createBranch = async (req, res) => {
     invalidateCache(CACHE_KEY);
     res.status(201).json({ message: "Branch created", branch });
   } catch (err) {
+    // Two concurrent creates for the same branchId can both pass the findOne
+    // pre-check above; the unique index is what actually prevents the dupe.
+    if (err.code === 11000) {
+      return res
+        .status(409)
+        .json({ message: "A branch with that ID already exists" });
+    }
     console.error("createBranch:", err);
     res.status(500).json({ message: "Failed to create branch" });
   }
@@ -190,14 +199,15 @@ export const createBranch = async (req, res) => {
 // ── DELETE /api/branches/:id  (admin) — can't delete HQ ──────────────────────
 export const deleteBranch = async (req, res) => {
   try {
-    const branch = await Branch.findOne({ branchId: req.params.id });
+    const branchId = req.params.id.toLowerCase();
+    const branch = await Branch.findOne({ branchId });
     if (!branch) return res.status(404).json({ message: "Branch not found" });
     if (branch.isHQ)
       return res
         .status(400)
         .json({ message: "Cannot delete the headquarters branch" });
 
-    await Branch.deleteOne({ branchId: req.params.id });
+    await Branch.deleteOne({ branchId });
     triggerRevalidate(["branches"]);
     invalidateCache(CACHE_KEY);
     res.json({ message: "Branch deleted" });

@@ -19,6 +19,17 @@ export const password = z
 
 export const nonEmptyString = z.string().trim().min(1, "Required");
 
+// Admin-controlled URL fields (map links, social links) get rendered as raw
+// hrefs/iframe src on the public site — restrict to http(s) so a compromised
+// admin session can't plant a "javascript:" URI that executes in a visitor's
+// browser when clicked.
+export const safeUrl = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^https:\/\//i.test(v), {
+    message: "Must be a valid https:// URL",
+  });
+
 // Query-string pagination — validated for shape only (see middlewares/validate.js
 // for why this is never written back to req.query).
 export const paginationQuery = z.object({
