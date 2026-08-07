@@ -1108,14 +1108,16 @@ export async function generatePaymentInvoice(sub, banks = []) {
   // ── Bank payment details ─────────────────────────────────────────────────
   y = sectionHeading(doc, "Bank Payment Details", y + 4);
 
-  // Render each active bank account
+  // Render each active bank account. If none are configured, show an honest
+  // "contact us" placeholder rather than a specific bank/account name that
+  // could be stale or simply wrong.
   const activeBanks = banks.length
     ? banks
     : [
         {
-          bankName: "ACCESS BANK PLC",
-          accountName: "KEMCHUTA HOMES LIMITED",
-          accountNumber: "Contact admin for account number",
+          bankName: "Contact us for bank details",
+          accountName: "info@kemchutahomesltd.com",
+          accountNumber: "Not yet available",
           sortCode: "",
           note: "",
         },

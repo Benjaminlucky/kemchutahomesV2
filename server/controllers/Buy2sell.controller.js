@@ -1,6 +1,7 @@
 import { isValidObjectId } from "mongoose";
 import { ROISettings, Buy2SellLead } from "../models/Buy2sell.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
 import { triggerRevalidate } from "../utils/revalidate.js";
 import { invalidateChatPromptCache } from "../utils/chatPromptCache.js";
 import { getCached, invalidateCache } from "../utils/dataCache.js";
@@ -100,34 +101,43 @@ const infoBox = (rows) =>
     ${rows.map(([l, v]) => `<p style="margin:5px 0;font-size:13px;color:#374151;"><strong>${l}:</strong> ${v}</p>`).join("")}
   </div>`;
 
-const bankBox = (ref, banks = []) => {
-  const accs = banks.length
-    ? banks
-    : [
-        {
-          bankName: "ACCESS BANK PLC",
-          accountName: "KEMCHUTA HOMES LIMITED",
-          accountNumber: "Contact admin",
-          note: "",
-        },
-      ];
-  const rows = accs
+// Mirrors subscription.controller.js's bankBox — same fallback, field set,
+// and escaping, so a customer who touches both products (a Buy2Sell investor
+// who is also a land subscriber) sees consistent payment instructions.
+const bankBox = (ref, accounts = []) => {
+  if (!accounts.length) {
+    return `<div style="background:#f0fdf4;border-radius:10px;padding:18px 20px;margin:20px 0;border-left:4px solid #059669;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#059669;">Payment Details</p>
+      <p style="margin:4px 0;font-size:13px;color:#374151;">Please contact us for bank payment details: <strong>info@kemchutahomesltd.com</strong></p>
+      <p style="margin:4px 0;font-size:13px;color:#374151;"><strong>Payment Reference:</strong> <strong style="color:#700CEB;">${ref}</strong></p>
+    </div>`;
+  }
+  const rows = accounts
     .map(
       (a) => `
-    <p style="margin:3px 0;font-size:13px;color:#374151;"><strong>Bank:</strong> ${a.bankName}</p>
-    <p style="margin:3px 0;font-size:13px;color:#374151;"><strong>Account:</strong> ${a.accountName}</p>
-    <p style="margin:3px 0;font-size:13px;color:#374151;"><strong>Number:</strong> ${a.accountNumber}</p>
-    ${a.note ? `<p style="margin:3px 0;font-size:12px;color:#6b7280;font-style:italic;">${a.note}</p>` : ""}
-  `,
+    <div style="margin-bottom:${accounts.length > 1 ? "14px" : "0"};${accounts.length > 1 ? "padding-bottom:14px;border-bottom:1px solid #d1fae5;" : ""}">
+      ${accounts.length > 1 ? `<p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.05em;">${a.isPrimary ? "★ Primary Account" : "Additional Account"}</p>` : ""}
+      ${[
+        ["Bank", a.bankName],
+        ["Account Name", a.accountName],
+        ["Account Number", a.accountNumber],
+        ...(a.sortCode ? [["Sort Code", a.sortCode]] : []),
+      ]
+        .map(
+          ([l, v]) =>
+            `<p style="margin:3px 0;font-size:13px;color:#374151;"><strong>${l}:</strong> ${escapeHtml(v)}</p>`,
+        )
+        .join("")}
+      ${a.note ? `<p style="margin:4px 0;font-size:11px;color:#6b7280;font-style:italic;">${escapeHtml(a.note)}</p>` : ""}
+    </div>`,
     )
-    .join(
-      '<hr style="border:none;border-top:1px solid #e5e7eb;margin:10px 0;">',
-    );
+    .join("");
+
   return `<div style="background:#f0fdf4;border-radius:10px;padding:18px 20px;margin:20px 0;border-left:4px solid #059669;">
     <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#059669;">Payment Details</p>
     ${rows}
-    <p style="margin:10px 0 4px;font-size:13px;color:#374151;"><strong>Reference:</strong> <strong style="color:#700CEB;">${ref}</strong></p>
-    <p style="margin:8px 0 0;font-size:12px;color:#6b7280;">Always quote your reference on every transfer.</p>
+    <p style="margin:10px 0 4px;font-size:13px;color:#374151;"><strong>Payment Reference:</strong> <strong style="color:#700CEB;">${ref}</strong></p>
+    <p style="margin:8px 0 0;font-size:12px;color:#6b7280;">⚠ Always quote your reference on every transfer. Send proof to info@kemchutahomesltd.com</p>
   </div>`;
 };
 

@@ -1,6 +1,7 @@
 import { isValidObjectId } from "mongoose";
 import Subscription, { STATUSES } from "../models/Subscription.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
 import {
   generateAcknowledgement,
   generateContractOfSale,
@@ -170,10 +171,10 @@ const bankBox = (ref, accounts = []) => {
       ]
         .map(
           ([l, v]) =>
-            `<p style="margin:3px 0;font-size:13px;color:#374151;"><strong>${l}:</strong> ${v}</p>`,
+            `<p style="margin:3px 0;font-size:13px;color:#374151;"><strong>${l}:</strong> ${escapeHtml(v)}</p>`,
         )
         .join("")}
-      ${a.note ? `<p style="margin:4px 0;font-size:11px;color:#6b7280;font-style:italic;">${a.note}</p>` : ""}
+      ${a.note ? `<p style="margin:4px 0;font-size:11px;color:#6b7280;font-style:italic;">${escapeHtml(a.note)}</p>` : ""}
     </div>`,
     )
     .join("");

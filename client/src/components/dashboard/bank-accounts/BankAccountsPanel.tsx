@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Toast } from "@/components/ui/Toast";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { FormField, textInputClass } from "@/components/client-auth/FormField";
 import type { BankAccount, BankAccountFormInput } from "./types";
 
@@ -28,12 +29,28 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
   const [setPrimaryOnCreate, setSetPrimaryOnCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BankAccount | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const { data: accounts = [] } = useQuery({
+  const {
+    data: accounts = [],
+    isError: fetchFailed,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ["bank-accounts"],
     queryFn: fetchAccounts,
     initialData: initial,
   });
+
+  // The server always seeds a default account, so a successful fetch can
+  // never legitimately return zero — an empty list here only ever means the
+  // page.tsx SSR fetch (or this client-side one) failed and silently fell
+  // back to []. Treat it as a load failure, not "no accounts exist yet", so
+  // an admin never mistakes "we couldn't reach the server" for "there is
+  // nothing to see here".
+  const loadFailed = fetchFailed || accounts.length === 0;
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
@@ -55,6 +72,7 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
       setFormTarget(null);
       invalidate();
     },
+    onError: (err) => setFormError(err.message || "Failed to create bank account"),
   });
 
   const updateMutation = useDashboardMutation<unknown, { id: string; body: Partial<BankAccount> }>({
@@ -75,6 +93,14 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
       }
       invalidate();
     },
+    onError: (err, { body }) => {
+      const message = err.message || "Failed to update bank account";
+      // The modal form only ever sends bankName among its fields — anything
+      // else (the inline isActive checkbox, the Make Primary button) has no
+      // modal open to show an ErrorBanner in, so it needs the page-level one.
+      if (body.bankName !== undefined) setFormError(message);
+      else setPageError(message);
+    },
   });
 
   const deleteMutation = useDashboardMutation<unknown, BankAccount>({
@@ -89,11 +115,13 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
       setDeleteTarget(null);
       invalidate();
     },
+    onError: (err) => setDeleteError(err.message || "Failed to delete bank account"),
   });
 
   function openNew() {
     setForm(EMPTY_FORM);
     setSetPrimaryOnCreate(false);
+    setFormError(null);
     setFormTarget("new");
   }
 
@@ -105,6 +133,7 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
       sortCode: account.sortCode ?? "",
       note: account.note ?? "",
     });
+    setFormError(null);
     setFormTarget(account);
   }
 
@@ -122,6 +151,27 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
   return (
     <div>
       <Toast message={toast} onClose={() => setToast(null)} />
+
+      {loadFailed && (
+        <ErrorBanner className="mb-4 flex items-center justify-between gap-3">
+          <span>Failed to load bank accounts.</span>
+          <Button variant="secondary" size="sm" loading={isFetching} onClick={() => refetch()}>
+            Retry
+          </Button>
+        </ErrorBanner>
+      )}
+      {pageError && (
+        <ErrorBanner className="mb-4 flex items-center justify-between gap-3">
+          <span>{pageError}</span>
+          <button
+            onClick={() => setPageError(null)}
+            className="text-xs font-bold text-red-700 hover:underline"
+            aria-label="Dismiss"
+          >
+            Dismiss
+          </button>
+        </ErrorBanner>
+      )}
 
       <div className="mb-6 flex justify-end">
         <Button onClick={openNew}>
@@ -148,7 +198,7 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
                   <Star size={12} fill="currentColor" />
                   Primary
                 </span>
-              ) : (
+              ) : account.isActive ? (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -157,10 +207,20 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
                     updateMutation.variables?.id === account._id &&
                     updateMutation.variables?.body.isPrimary === true
                   }
-                  onClick={() => updateMutation.mutate({ id: account._id, body: { isPrimary: true } })}
+                  onClick={() => {
+                    setPageError(null);
+                    updateMutation.mutate({ id: account._id, body: { isPrimary: true } });
+                  }}
                 >
                   Make Primary
                 </Button>
+              ) : (
+                <span
+                  className="rounded-full bg-customBlack-50 px-2.5 py-1 text-xs font-medium text-customBlack-400"
+                  title="Activate this account before it can be made primary"
+                >
+                  Inactive
+                </span>
               )}
             </div>
 
@@ -173,7 +233,10 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
                 <input
                   type="checkbox"
                   checked={account.isActive}
-                  onChange={(e) => updateMutation.mutate({ id: account._id, body: { isActive: e.target.checked } })}
+                  onChange={(e) => {
+                    setPageError(null);
+                    updateMutation.mutate({ id: account._id, body: { isActive: e.target.checked } });
+                  }}
                   className="h-4 w-4 accent-customPurple-500"
                 />
                 <span className={account.isActive ? "text-green-700" : "text-customBlack-400"}>
@@ -184,16 +247,21 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
                 <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => openEdit(account)}>
                   <Pencil size={15} />
                 </Button>
-                <Button variant="danger" size="icon" aria-label="Delete" onClick={() => setDeleteTarget(account)}>
+                <Button
+                  variant="danger"
+                  size="icon"
+                  aria-label="Delete"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteTarget(account);
+                  }}
+                >
                   <Trash2 size={15} />
                 </Button>
               </div>
             </div>
           </Card>
         ))}
-        {sorted.length === 0 && (
-          <p className="col-span-2 py-16 text-center text-sm text-customBlack-400">No bank accounts yet.</p>
-        )}
       </div>
 
       <Modal
@@ -202,6 +270,8 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
         title={formTarget === "new" ? "Add Bank Account" : "Edit Bank Account"}
       >
         <div className="space-y-4">
+          {formError && <ErrorBanner>{formError}</ErrorBanner>}
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField label="Bank Name">
               <input
@@ -222,6 +292,7 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
                 value={form.accountNumber}
                 onChange={(e) => setForm({ ...form, accountNumber: e.target.value })}
                 className={textInputClass()}
+                placeholder="Digits only"
               />
             </FormField>
             <FormField label="Sort Code (optional)">
@@ -276,6 +347,7 @@ export default function BankAccountsPanel({ initial }: { initial: BankAccount[] 
         description={
           <>
             Delete <span className="font-semibold text-gray-800">{deleteTarget?.bankName}</span> ({deleteTarget?.accountNumber})? This cannot be undone.
+            {deleteError && <ErrorBanner className="mt-3 text-left">{deleteError}</ErrorBanner>}
           </>
         }
         loading={deleteMutation.isPending}

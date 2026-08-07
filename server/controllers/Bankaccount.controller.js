@@ -1,11 +1,23 @@
+import { isValidObjectId } from "mongoose";
 import BankAccount from "../models/BankAccount.model.js";
+
+// ── :id guard ────────────────────────────────────────────────────────────────
+// Mirrors estate.controller.js's rejectedInvalidId — without it, a malformed
+// id reaches findById/findByIdAndUpdate, throws a CastError, and gets reported
+// as a generic 500 for what is plainly bad client input. Returns true when it
+// has already sent the response.
+const rejectedInvalidId = (req, res) => {
+  if (isValidObjectId(req.params.id)) return false;
+  res.status(400).json({ message: "Invalid bank account ID" });
+  return true;
+};
 
 // ── Default seed (runs once if collection is empty) ───────────────────────────
 const DEFAULTS = [
   {
     bankName: "ACCESS BANK PLC",
     accountName: "KEMCHUTA HOMES LIMITED",
-    accountNumber: "XXXXXXXXXX",
+    accountNumber: "0000000000",
     isPrimary: true,
     isActive: true,
     note: "Primary account for all property payments",
@@ -49,10 +61,9 @@ export const createBankAccount = async (req, res) => {
         message: "Bank name, account name, and account number are required",
       });
 
-    // If new account is primary, demote others
-    if (isPrimary) {
-      await BankAccount.updateMany({}, { isPrimary: false });
-    }
+    // The very first account is always primary regardless of what was
+    // requested — there must never be a moment with zero primary accounts.
+    const isFirstAccount = (await BankAccount.countDocuments()) === 0;
 
     const account = await BankAccount.create({
       bankName: bankName.trim(),
@@ -60,8 +71,20 @@ export const createBankAccount = async (req, res) => {
       accountNumber: accountNumber.trim(),
       sortCode: sortCode?.trim() || "",
       note: note?.trim() || "",
-      isPrimary: !!isPrimary,
+      isActive: true,
+      isPrimary: isFirstAccount ? true : !!isPrimary,
     });
+
+    // Demote others only AFTER the new account exists — if create() had
+    // thrown, no other account would have been touched, so a failed request
+    // never leaves the system with zero primary accounts.
+    if (account.isPrimary) {
+      await BankAccount.updateMany(
+        { _id: { $ne: account._id } },
+        { isPrimary: false },
+      );
+    }
+
     res.status(201).json({ message: "Bank account added", account });
   } catch (err) {
     console.error("createBankAccount:", err);
@@ -71,7 +94,12 @@ export const createBankAccount = async (req, res) => {
 
 // ── PUT /api/bank-accounts/:id (admin) ───────────────────────────────────────
 export const updateBankAccount = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
+    const existing = await BankAccount.findById(req.params.id);
+    if (!existing)
+      return res.status(404).json({ message: "Bank account not found" });
+
     const {
       bankName,
       accountName,
@@ -82,12 +110,39 @@ export const updateBankAccount = async (req, res) => {
       isPrimary,
     } = req.body;
 
-    // If setting as primary, demote others first
-    if (isPrimary) {
-      await BankAccount.updateMany(
-        { _id: { $ne: req.params.id } },
-        { isPrimary: false },
-      );
+    const resultingActive =
+      isActive !== undefined ? Boolean(isActive) : existing.isActive;
+    const resultingPrimary =
+      isPrimary !== undefined ? Boolean(isPrimary) : existing.isPrimary;
+
+    if (resultingPrimary && !resultingActive) {
+      return res.status(400).json({
+        message: "The primary account must be active — activate it first, or make a different account primary.",
+      });
+    }
+
+    if (existing.isActive && resultingActive === false) {
+      const otherActive = await BankAccount.countDocuments({
+        _id: { $ne: existing._id },
+        isActive: true,
+      });
+      if (otherActive === 0) {
+        return res
+          .status(400)
+          .json({ message: "Cannot deactivate the only active bank account." });
+      }
+    }
+
+    if (existing.isPrimary && resultingPrimary === false) {
+      const otherActive = await BankAccount.countDocuments({
+        _id: { $ne: existing._id },
+        isActive: true,
+      });
+      if (otherActive === 0) {
+        return res.status(400).json({
+          message: "Cannot unset the only account as primary — make another account primary instead.",
+        });
+      }
     }
 
     const account = await BankAccount.findByIdAndUpdate(
@@ -105,16 +160,27 @@ export const updateBankAccount = async (req, res) => {
       },
       { new: true },
     );
-    if (!account)
-      return res.status(404).json({ message: "Bank account not found" });
+
+    // Demote others only AFTER the update succeeded — if another request had
+    // deleted this id in the meantime, findByIdAndUpdate returns null above
+    // (guarded, so we'd never reach here) and no other account gets touched.
+    if (isPrimary) {
+      await BankAccount.updateMany(
+        { _id: { $ne: account._id } },
+        { isPrimary: false },
+      );
+    }
+
     res.json({ message: "Bank account updated", account });
   } catch (err) {
+    console.error("updateBankAccount:", err);
     res.status(500).json({ message: "Failed to update bank account" });
   }
 };
 
 // ── DELETE /api/bank-accounts/:id (admin) ────────────────────────────────────
 export const deleteBankAccount = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
   try {
     const account = await BankAccount.findById(req.params.id);
     if (!account)
@@ -127,17 +193,35 @@ export const deleteBankAccount = async (req, res) => {
         .status(400)
         .json({ message: "Cannot delete the only bank account" });
 
+    if (account.isActive) {
+      const otherActive = await BankAccount.countDocuments({
+        _id: { $ne: account._id },
+        isActive: true,
+      });
+      if (otherActive === 0) {
+        return res
+          .status(400)
+          .json({ message: "Cannot delete the only active bank account" });
+      }
+    }
+
     await BankAccount.findByIdAndDelete(req.params.id);
 
-    // If deleted account was primary, promote oldest remaining
+    // If deleted account was primary, promote the oldest remaining ACTIVE
+    // account — an inactive account must never be silently crowned primary.
     if (account.isPrimary) {
-      const oldest = await BankAccount.findOne().sort({ createdAt: 1 });
-      if (oldest)
-        await BankAccount.findByIdAndUpdate(oldest._id, { isPrimary: true });
+      const replacement = await BankAccount.findOne({ isActive: true }).sort({
+        createdAt: 1,
+      });
+      if (replacement)
+        await BankAccount.findByIdAndUpdate(replacement._id, {
+          isPrimary: true,
+        });
     }
 
     res.json({ message: "Bank account deleted" });
   } catch (err) {
+    console.error("deleteBankAccount:", err);
     res.status(500).json({ message: "Failed to delete bank account" });
   }
 };
