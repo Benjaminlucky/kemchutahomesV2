@@ -22,6 +22,7 @@
  */
 
 import Estate from "../models/estate.model.js";
+import Branch from "../models/branch.model.js";
 import { ROISettings } from "../models/Buy2sell.model.js";
 import { KnowledgeBase } from "../models/knowledgeBase.model.js";
 import { getCachedSystemPrompt } from "../utils/chatPromptCache.js";
@@ -29,9 +30,9 @@ import { getCachedSystemPrompt } from "../utils/chatPromptCache.js";
 // ─────────────────────────────────────────────────────────────────────────────
 // Dynamic system prompt builder — queries MongoDB on every chat request
 // ─────────────────────────────────────────────────────────────────────────────
-async function buildSystemPrompt() {
+export async function buildSystemPrompt() {
   // Fetch all live data in parallel — failures are caught individually
-  const [estates, roi, kb] = await Promise.all([
+  const [estates, roi, kb, branches] = await Promise.all([
     Estate.find({})
       .select(
         "estate location address price sqm title purpose desc paymentPlans",
@@ -44,22 +45,41 @@ async function buildSystemPrompt() {
     KnowledgeBase.findOne({ singleton: "global" })
       .lean()
       .catch(() => null),
+    Branch.find({ isActive: true })
+      .sort({ isHQ: -1, label: 1 })
+      .lean()
+      .catch(() => []),
   ]);
 
   // ── Company info ──────────────────────────────────────────────────────────
+  // Office phone/address come from the live Branch collection (the "Contact
+  // Info" admin page) — the same source of truth used on the public site and
+  // its JSON-LD, so an admin only has to update an office's details in one
+  // place for the chatbot to pick it up. The legacy KnowledgeBase fields are
+  // kept only as a fallback for the pathological case of zero configured
+  // branches. Genuinely company-wide (non-per-office) channels — WhatsApp,
+  // general email, hours, Instagram — still come from KnowledgeBase.
   const info = kb?.companyInfo || {};
-  const lagosPhone = info.lagosPhone || "+234 800 000 0001";
-  const asabaPhone = info.asabaPhone || "+234 800 000 0003";
   const whatsapp = info.whatsappNumber || "+234 800 000 0001";
-  const email = info.email || "info@kemchutahomesltd.com";
-  const lagosAddr =
-    info.lagosAddress ||
-    "Lekki-Epe Expressway, Abijo, Lekki Peninsula, Lagos State";
-  const asabaAddr = info.asabaAddress || "Asaba, Delta State";
+  const email = info.email || branches[0]?.emails?.[0] || "info@kemchutahomesltd.com";
   const hours =
     info.workingHours ||
     "Monday–Friday 8am–6pm, Saturday 9am–4pm, Closed Sunday";
   const instagram = info.instagramHandle || "@kemchutahomesltd";
+  const escalationPhone =
+    branches.find((b) => b.isHQ)?.phones?.[0] ||
+    branches[0]?.phones?.[0] ||
+    info.lagosPhone ||
+    "+234 800 000 0001";
+
+  const officesBlock = branches.length
+    ? branches
+        .map(
+          (b) =>
+            `${b.label}${b.isHQ ? " (HQ)" : ""} Office: ${b.address || "Address on request"} | Tel: ${b.phones?.[0] || "Contact us"}`,
+        )
+        .join("\n")
+    : `Lagos Office: ${info.lagosAddress || "Lekki-Epe Expressway, Abijo, Lekki Peninsula, Lagos State"} | Tel: ${info.lagosPhone || "+234 800 000 0001"}\nAsaba Office: ${info.asabaAddress || "Asaba, Delta State"} | Tel: ${info.asabaPhone || "+234 800 000 0003"}`;
 
   // ── ROI rates ─────────────────────────────────────────────────────────────
   const roi6 = roi?.roiPercent6Months ?? 22;
@@ -96,7 +116,11 @@ async function buildSystemPrompt() {
     : "";
 
   // ── Active notices ────────────────────────────────────────────────────────
-  const activeNotices = (kb?.notices || []).filter((n) => n.active);
+  // Same "missing field counts as visible" convention as activeFaqs above and
+  // as AnnouncementBar.tsx's own filter — a notice created before `active`
+  // had a schema default must not silently disappear from one surface but
+  // not the other.
+  const activeNotices = (kb?.notices || []).filter((n) => n.active !== false);
   const noticesBlock = activeNotices.length
     ? "⚡ CURRENT ANNOUNCEMENTS (mention these when relevant):\n" +
       activeNotices.map((n) => `• ${n.text}`).join("\n") +
@@ -115,8 +139,7 @@ ${noticesBlock}
 ═══ COMPANY CONTACTS (always use these exact details) ═══
 
 Email: ${email}
-Lagos Office: ${lagosAddr} | Tel: ${lagosPhone}
-Asaba Office: ${asabaAddr} | Tel: ${asabaPhone}
+${officesBlock}
 WhatsApp: ${whatsapp}
 Instagram: ${instagram}
 Hours: ${hours}
@@ -184,7 +207,20 @@ DO NOT:
 • Collect passwords or payment card details
 • Discuss competitors
 
-Escalation phrase (when you truly cannot help): "For this, please call ${lagosPhone} (Lagos) or ${asabaPhone} (Asaba), or WhatsApp us on ${whatsapp}. We're available ${hours}."`;
+Escalation phrase (when you truly cannot help): "For this, please call ${escalationPhone} or WhatsApp us on ${whatsapp}. We're available ${hours}."`;
+}
+
+// A human phone number to show when the AI itself is unavailable — the one
+// moment a stale/fake fallback number matters most. Deliberately independent
+// of buildSystemPrompt() (which may be exactly what just failed) and cheap
+// enough to look up fresh on every failure rather than trust a cached value.
+export async function getFallbackPhone() {
+  try {
+    const hq = await Branch.findOne({ isActive: true }).sort({ isHQ: -1, label: 1 }).lean();
+    return hq?.phones?.[0] || "+234 800 000 0001";
+  } catch {
+    return "+234 800 000 0001";
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -243,13 +279,13 @@ export const handleChat = async (req, res) => {
     const data = await groqRes.json();
     const reply =
       data.choices?.[0]?.message?.content?.trim() ||
-      "I'm sorry, I couldn't generate a response. Please call +234 800 000 0001.";
+      `I'm sorry, I couldn't generate a response. Please call ${await getFallbackPhone()}.`;
 
     res.json({ reply });
   } catch (err) {
     console.error("Chat error:", err.message);
     res.status(500).json({
-      message: "Chat unavailable right now. Please call +234 800 000 0001.",
+      message: `Chat unavailable right now. Please call ${await getFallbackPhone()}.`,
     });
   }
 };

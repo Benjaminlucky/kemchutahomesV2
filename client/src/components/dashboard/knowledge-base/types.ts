@@ -17,7 +17,7 @@ export type Faq = {
   active?: boolean;
 };
 
-export type Notice = { _id: string; text: string; active?: boolean };
+export type Notice = { _id: string; text: string; active?: boolean; createdAt?: string };
 
 export type CompanyInfo = {
   lagosPhone: string;
@@ -34,4 +34,5 @@ export type KnowledgeBase = {
   faqs: Faq[];
   companyInfo: CompanyInfo;
   notices: Notice[];
+  updatedAt?: string;
 };

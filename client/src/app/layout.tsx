@@ -104,7 +104,13 @@ export default async function RootLayout({
         <GoogleAnalytics />
         <SiteChrome>{children}</SiteChrome>
         <ChatWidgetGate
-          companyInfo={{ whatsappNumber: companyInfo.whatsappNumber, lagosPhone: companyInfo.lagosPhone }}
+          companyInfo={{
+            whatsappNumber: companyInfo.whatsappNumber,
+            // Same "one source of truth" branch data used for the JSON-LD
+            // above — falls back to the legacy knowledge-base field only if
+            // no branch is configured, so the widget never regresses.
+            lagosPhone: hq?.phones?.[0] || companyInfo.lagosPhone,
+          }}
         />
       </body>
     </html>

@@ -32,6 +32,19 @@ const faqSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// A proper sub-schema (not an inline `{ text, active }` shape) so each
+// notice gets its own `_id` cast rules, a `default: true` for `active` (a
+// notice created before this field existed must still show up everywhere
+// that filters on it), and `timestamps` so the admin can see how old a
+// "temporary" announcement actually is.
+const noticeSchema = new mongoose.Schema(
+  {
+    text: { type: String, required: true, trim: true },
+    active: { type: Boolean, default: true },
+  },
+  { timestamps: true },
+);
+
 const knowledgeBaseSchema = new mongoose.Schema(
   {
     singleton: { type: String, default: "global", unique: true },
@@ -58,7 +71,7 @@ const knowledgeBaseSchema = new mongoose.Schema(
     faqs: { type: [faqSchema], default: [] },
 
     // Notices — temporary announcements injected into AI context
-    notices: { type: [{ text: String, active: Boolean }], default: [] },
+    notices: { type: [noticeSchema], default: [] },
   },
   { timestamps: true },
 );

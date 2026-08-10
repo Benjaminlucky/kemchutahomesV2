@@ -6,6 +6,7 @@ import {
   updateFaq,
   deleteFaq,
   addNotice,
+  updateNotice,
   deleteNotice,
 } from "../controllers/knowledgeBase.controller.js";
 import { protect, isAdmin } from "../middlewares/authMiddleware.js";
@@ -15,6 +16,7 @@ import {
   addFaqSchema,
   updateFaqSchema,
   addNoticeSchema,
+  updateNoticeSchema,
 } from "../schemas/knowledgeBase.schema.js";
 
 const router = express.Router();
@@ -40,6 +42,13 @@ router.put(
 );
 router.delete("/faqs/:faqId", protect, isAdmin, deleteFaq);
 router.post("/notices", protect, isAdmin, validate(addNoticeSchema), addNotice);
+router.put(
+  "/notices/:id",
+  protect,
+  isAdmin,
+  validate(updateNoticeSchema),
+  updateNotice,
+);
 router.delete("/notices/:id", protect, isAdmin, deleteNotice);
 
 export default router;
