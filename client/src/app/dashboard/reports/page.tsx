@@ -1,48 +1,29 @@
 import { cookies } from "next/headers";
-import { LayoutGrid, Users, ClipboardList, CalendarCheck, Building2 } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import ConversionFunnel from "@/components/dashboard/overview/ConversionFunnel";
+import { SectionHeading } from "@/components/dashboard/overview/ChartCard";
+import KpiGrid from "@/components/dashboard/overview/KpiGrid";
+import PaymentPlanCards from "@/components/dashboard/overview/PaymentPlanCards";
+import PlotTypeChart from "@/components/dashboard/overview/PlotTypeChart";
+import RevenueChart from "@/components/dashboard/overview/RevenueChart";
+import StatusDonut from "@/components/dashboard/overview/StatusDonut";
+import TrendChart from "@/components/dashboard/overview/TrendChart";
+import Buy2SellSection from "@/components/dashboard/reports/Buy2SellSection";
+import CommissionsSection from "@/components/dashboard/reports/CommissionsSection";
+import TopRealtorsCard from "@/components/dashboard/reports/TopRealtorsCard";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import StatCard from "@/components/client-portal/StatCard";
+import {
+  INSP_STATUS_COLOR,
+  SUB_STATUS_COLOR,
+  buildTrendRows,
+  type Analytics,
+} from "@/components/dashboard/overview/types";
 
-type StatusBreakdown = { _id: string; count: number }[];
-
-type Analytics = {
-  realtors: {
-    total: number;
-    newThisMonth: number;
-    newLastMonth: number;
-    monthOverMonth: number;
-    totalRecruits: number;
-  };
-  subscriptions: {
-    total: number;
-    byStatus: StatusBreakdown;
-    approvedRevenue: number;
-    approvedCount: number;
-    avgDealSize: number;
-    approvalRate: number;
-    byPlotType: { label: string; count: number; revenue: number }[];
-    byPaymentPlan: { label: string; count: number }[];
-    monthly: { labels: string[]; counts: number[]; revenue: number[] };
-  };
-  inspections: {
-    total: number;
-    byStatus: StatusBreakdown;
-    upcoming7Days: number;
-    inspToSubRate: number;
-    monthly: { labels: string[]; counts: number[] };
-  };
-  estates: { total: number; active: number };
-};
-
-function naira(n: number) {
-  return `₦${Math.round(n).toLocaleString()}`;
-}
-
-// Server Component only — GET /api/admin/analytics already existed server-side
-// (14 KPI aggregations run in parallel) but the legacy Reports.jsx was a
-// static placeholder that never called it. This is a genuine first build of
-// the Reports page, not a port of prior UI.
+// Server Component — everything below is built from the one GET
+// /api/admin/analytics call (all aggregations run server-side in parallel).
+// This page is the deep-dive counterpart to the Dashboard home's summary:
+// same realtor/subscription/inspection KPIs, plus the full Buy2Sell,
+// Commissions, and realtor-leaderboard picture the home page deliberately
+// keeps out to stay a quick daily glance.
 export default async function ReportsPage() {
   const cookieHeader = (await cookies()).toString();
   let analytics: Analytics | null = null;
@@ -59,135 +40,63 @@ export default async function ReportsPage() {
 
   return (
     <div>
-      <h1 className="mb-8 text-3xl font-bold text-customBlack-900">Reports & Analytics</h1>
+      <h1 className="mb-1 text-2xl font-bold text-customBlack-900 sm:text-3xl">Reports &amp; Analytics</h1>
+      <p className="mb-7 text-sm text-customBlack-400">
+        Every number behind Kemchuta Homes — network growth, land sales, Buy2Sell investments, and commission
+        payouts, all in one place.
+      </p>
 
       {!analytics ? (
         <ErrorBanner>Couldn&rsquo;t load analytics right now — please refresh.</ErrorBanner>
       ) : (
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="Realtors"
-              value={analytics.realtors.total}
-              icon={Users}
-              subtext={`${analytics.realtors.newThisMonth} new this month (${analytics.realtors.monthOverMonth >= 0 ? "+" : ""}${analytics.realtors.monthOverMonth}% MoM)`}
-            />
-            <StatCard
-              label="Subscriptions"
-              value={analytics.subscriptions.total}
-              icon={ClipboardList}
-              subtext={`${analytics.subscriptions.approvalRate}% approval rate`}
-            />
-            <StatCard
-              label="Approved Revenue"
-              value={naira(analytics.subscriptions.approvedRevenue)}
-              icon={LayoutGrid}
-              subtext={`${analytics.subscriptions.approvedCount} deals · avg ${naira(analytics.subscriptions.avgDealSize)}`}
-            />
-            <StatCard
-              label="Inspections"
-              value={analytics.inspections.total}
-              icon={CalendarCheck}
-              subtext={`${analytics.inspections.upcoming7Days} upcoming · ${analytics.inspections.inspToSubRate}% converted`}
-            />
-            <StatCard
-              label="Estates"
-              value={analytics.estates.total}
-              icon={Building2}
-              subtext={`${analytics.estates.active} active`}
-            />
-            <StatCard label="Recruited Realtors" value={analytics.realtors.totalRecruits} icon={Users} />
+        <div className="space-y-10">
+          <KpiGrid analytics={analytics} />
+
+          <div>
+            <SectionHeading title="Land Subscriptions & Site Visits" sub="Six-month activity, revenue and status mix" />
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                <TrendChart rows={buildTrendRows(analytics)} />
+                <StatusDonut
+                  title="Subscription Status"
+                  sub="Pipeline breakdown"
+                  counts={analytics.subscriptions.byStatus}
+                  colors={SUB_STATUS_COLOR}
+                  delay={0.06}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <RevenueChart rows={buildTrendRows(analytics)} delay={0.04} />
+                <PlotTypeChart byPlotType={analytics.subscriptions.byPlotType} delay={0.08} />
+                <StatusDonut
+                  title="Inspection Status"
+                  sub="Site visit pipeline"
+                  counts={analytics.inspections.byStatus}
+                  colors={INSP_STATUS_COLOR}
+                  delay={0.12}
+                />
+              </div>
+
+              <ConversionFunnel analytics={analytics} delay={0.06} />
+
+              <PaymentPlanCards
+                byPaymentPlan={analytics.subscriptions.byPaymentPlan}
+                total={analytics.subscriptions.total}
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <MonthlyTrend title="Subscriptions per Month" labels={analytics.subscriptions.monthly.labels} values={analytics.subscriptions.monthly.counts} />
-            <MonthlyTrend title="Inspections per Month" labels={analytics.inspections.monthly.labels} values={analytics.inspections.monthly.counts} />
-          </div>
+          <Buy2SellSection analytics={analytics} />
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <StatusBreakdownCard title="Subscriptions by Status" rows={analytics.subscriptions.byStatus} />
-            <StatusBreakdownCard title="Inspections by Status" rows={analytics.inspections.byStatus} />
-          </div>
+          <CommissionsSection analytics={analytics} />
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <LabelledBreakdownCard
-              title="Subscriptions by Plot Type"
-              rows={analytics.subscriptions.byPlotType.map((p) => ({ label: p.label, count: p.count }))}
-            />
-            <LabelledBreakdownCard
-              title="Subscriptions by Payment Plan"
-              rows={analytics.subscriptions.byPaymentPlan}
-            />
+          <div>
+            <SectionHeading title="Realtor Leaderboard" sub="Who's driving the network forward" />
+            <TopRealtorsCard topRealtors={analytics.topRealtors} />
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-function MonthlyTrend({ title, labels, values }: { title: string; labels: string[]; values: number[] }) {
-  const max = Math.max(1, ...values);
-  return (
-    <Card radius="3xl" className="p-6">
-      <h3 className="mb-6 text-sm font-bold tracking-widest text-customBlack-400 uppercase">{title}</h3>
-      <div className="flex h-40 items-end justify-between gap-3">
-        {labels.map((label, i) => (
-          <div key={label} className="flex flex-1 flex-col items-center gap-2">
-            <div
-              className="w-full rounded-t-md bg-customPurple-500"
-              style={{ height: `${Math.max(4, (values[i] / max) * 100)}%` }}
-            />
-            <span className="text-xs text-customBlack-400">{label}</span>
-            <span className="text-xs font-bold text-customBlack-700">{values[i]}</span>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function StatusBreakdownCard({ title, rows }: { title: string; rows: StatusBreakdown }) {
-  const total = rows.reduce((sum, r) => sum + r.count, 0) || 1;
-  return (
-    <Card radius="3xl" className="p-6">
-      <h3 className="mb-6 text-sm font-bold tracking-widest text-customBlack-400 uppercase">{title}</h3>
-      <div className="space-y-3">
-        {rows.map((r) => (
-          <div key={r._id}>
-            <div className="mb-1 flex justify-between text-sm">
-              <span className="font-medium text-customBlack-700 capitalize">{r._id}</span>
-              <span className="font-bold text-customBlack-900">{r.count}</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-customBlack-50">
-              <div className="h-full rounded-full bg-customPurple-500" style={{ width: `${(r.count / total) * 100}%` }} />
-            </div>
-          </div>
-        ))}
-        {rows.length === 0 && <p className="text-sm text-customBlack-400">No data yet.</p>}
-      </div>
-    </Card>
-  );
-}
-
-function LabelledBreakdownCard({ title, rows }: { title: string; rows: { label: string; count: number }[] }) {
-  const total = rows.reduce((sum, r) => sum + r.count, 0) || 1;
-  return (
-    <Card radius="3xl" className="p-6">
-      <h3 className="mb-6 text-sm font-bold tracking-widest text-customBlack-400 uppercase">{title}</h3>
-      <div className="space-y-3">
-        {rows.map((r) => (
-          <div key={r.label}>
-            <div className="mb-1 flex justify-between text-sm">
-              <span className="font-medium text-customBlack-700">{r.label}</span>
-              <span className="font-bold text-customBlack-900">{r.count}</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-customBlack-50">
-              <div className="h-full rounded-full bg-customPurple-500" style={{ width: `${(r.count / total) * 100}%` }} />
-            </div>
-          </div>
-        ))}
-        {rows.length === 0 && <p className="text-sm text-customBlack-400">No data yet.</p>}
-      </div>
-    </Card>
   );
 }

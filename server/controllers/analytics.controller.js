@@ -2,6 +2,8 @@ import Realtor from "../models/realtor.model.js";
 import Subscription, { APPROVED_STATUSES } from "../models/Subscription.model.js";
 import Inspection from "../models/inspection.model.js";
 import Estate from "../models/estate.model.js";
+import { Buy2SellLead } from "../models/Buy2sell.model.js";
+import { Commission } from "../models/Commission.model.js";
 
 // ── Status → dashboard bucket ────────────────────────────────────────────────
 // Subscription.model.js's real STATUSES enum (see that file) is 13 granular
@@ -175,6 +177,110 @@ export const getAnalytics = async (req, res) => {
       Estate.countDocuments({ isActive: true }),
     ]);
 
+    // Second parallel batch — Buy2Sell + Commissions. Kept separate from the
+    // batch above for readability (this endpoint runs one aggregation set
+    // per KPI already; a single 20-slot destructure stops being scannable),
+    // at the cost of two round-trips instead of one on an admin-only,
+    // low-frequency page where that's a non-issue.
+    const FUNDED_B2S_STATUSES = ["active", "matured", "paid_out"];
+    const [
+      // ── Buy2Sell ──────────────────────────────────────────────────────────
+      b2sStatusCounts, // count per B2S_STATUSES value
+      b2sFundedAgg, // principal + expected ROI committed across funded leads
+      b2sPaidOutAgg, // actual payout total for paid_out leads
+      b2sByDuration, // count + principal per duration tier
+      b2sMonthly, // leads submitted + principal per month (last 6 months)
+      b2sMaturingSoon, // active/matured leads maturing in the next 30 days
+
+      // ── Commissions ─────────────────────────────────────────────────────────
+      commByStatusAgg, // net amount per status (pending/approved/paid/clawedback)
+      commWhtAgg, // WHT withheld on confirmed (approved+paid) commissions only
+      commBySourceAgg, // Lands vs Buy2Sell split
+      commByLevelAgg, // level 1-4 split
+      commMonthlyPaidAgg, // net amount actually paid out, by paidAt month
+      topRealtorsAgg, // top 5 earners by confirmed (approved+paid) net commission
+    ] = await Promise.all([
+      Buy2SellLead.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      Buy2SellLead.aggregate([
+        { $match: { status: { $in: FUNDED_B2S_STATUSES } } },
+        {
+          $group: {
+            _id: null,
+            principal: { $sum: "$principalAmount" },
+            expectedROI: { $sum: "$expectedROI" },
+          },
+        },
+      ]),
+      Buy2SellLead.aggregate([
+        { $match: { status: "paid_out" } },
+        { $group: { _id: null, paid: { $sum: "$actualPayout" } } },
+      ]),
+      Buy2SellLead.aggregate([
+        { $group: { _id: "$duration", count: { $sum: 1 }, principal: { $sum: "$principalAmount" } } },
+      ]),
+      Buy2SellLead.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) },
+          },
+        },
+        {
+          $group: {
+            _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+            count: { $sum: 1 },
+            principal: { $sum: "$principalAmount" },
+          },
+        },
+        { $sort: { "_id.year": 1, "_id.month": 1 } },
+      ]),
+      Buy2SellLead.countDocuments({
+        status: { $in: ["active", "matured"] },
+        maturityDate: { $gte: now, $lte: new Date(now.getTime() + 30 * 86400000) },
+      }),
+
+      Commission.aggregate([{ $group: { _id: "$status", net: { $sum: "$netAmount" } } }]),
+      Commission.aggregate([
+        { $match: { status: { $in: ["approved", "paid"] } } },
+        { $group: { _id: null, wht: { $sum: "$whtAmount" } } },
+      ]),
+      Commission.aggregate([
+        { $group: { _id: "$sourceType", count: { $sum: 1 }, net: { $sum: "$netAmount" } } },
+      ]),
+      Commission.aggregate([
+        { $group: { _id: "$level", count: { $sum: 1 }, net: { $sum: "$netAmount" } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Commission.aggregate([
+        {
+          $match: {
+            status: "paid",
+            paidAt: { $gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) },
+          },
+        },
+        {
+          $group: {
+            _id: { year: { $year: "$paidAt" }, month: { $month: "$paidAt" } },
+            net: { $sum: "$netAmount" },
+          },
+        },
+        { $sort: { "_id.year": 1, "_id.month": 1 } },
+      ]),
+      Commission.aggregate([
+        { $match: { status: { $in: ["approved", "paid"] } } },
+        {
+          $group: {
+            _id: "$realtorId",
+            name: { $first: "$realtorName" },
+            email: { $first: "$realtorEmail" },
+            totalEarned: { $sum: "$netAmount" },
+            dealCount: { $sum: 1 },
+          },
+        },
+        { $sort: { totalEarned: -1 } },
+        { $limit: 5 },
+      ]),
+    ]);
+
     // ── Shape subscription status map ────────────────────────────────────────
     // Bucket (not overwrite) — several real statuses fold into "reviewed",
     // and three fold into "approved" (see STATUS_BUCKET above). Falls back to
@@ -270,6 +376,40 @@ export const getAnalytics = async (req, res) => {
         return found ? found.revenue || 0 : 0;
       });
 
+    // ── Shape Buy2Sell status map ─────────────────────────────────────────────
+    const b2sStatus = {
+      pending: 0,
+      partial_paid: 0,
+      active: 0,
+      matured: 0,
+      paid_out: 0,
+      closed: 0,
+    };
+    b2sStatusCounts.forEach(({ _id, count }) => {
+      if (_id in b2sStatus) b2sStatus[_id] = count;
+    });
+    const totalB2S = Object.values(b2sStatus).reduce((a, b) => a + b, 0);
+
+    const b2sMonthlyPrincipal = monthLabels.map(({ month, year }) => {
+      const found = b2sMonthly.find((a) => a._id.month === month && a._id.year === year);
+      return found ? found.principal || 0 : 0;
+    });
+    const b2sMonthlyCount = monthLabels.map(({ month, year }) => {
+      const found = b2sMonthly.find((a) => a._id.month === month && a._id.year === year);
+      return found ? found.count : 0;
+    });
+
+    // ── Shape commission status map ───────────────────────────────────────────
+    const commStatus = { pending: 0, approved: 0, paid: 0, clawedback: 0 };
+    commByStatusAgg.forEach(({ _id, net }) => {
+      if (_id in commStatus) commStatus[_id] = net;
+    });
+
+    const commMonthlyPaid = monthLabels.map(({ month, year }) => {
+      const found = commMonthlyPaidAgg.find((a) => a._id.month === month && a._id.year === year);
+      return found ? found.net || 0 : 0;
+    });
+
     res.json({
       // ── Realtor KPIs ───────────────────────────────────────────────────────
       realtors: {
@@ -321,6 +461,55 @@ export const getAnalytics = async (req, res) => {
         total: totalEstates,
         active: activeEstates,
       },
+
+      // ── Buy2Sell KPIs ──────────────────────────────────────────────────────
+      buy2sell: {
+        total: totalB2S,
+        byStatus: b2sStatus,
+        totalPrincipal: b2sFundedAgg[0]?.principal || 0,
+        totalExpectedROI: b2sFundedAgg[0]?.expectedROI || 0,
+        totalPaidOut: b2sPaidOutAgg[0]?.paid || 0,
+        maturingSoon30Days: b2sMaturingSoon,
+        byDuration: b2sByDuration.map((d) => ({
+          label: d._id || "Unknown",
+          count: d.count,
+          principal: d.principal,
+        })),
+        monthly: {
+          labels: monthLabels.map((m) => m.label),
+          counts: b2sMonthlyCount,
+          principal: b2sMonthlyPrincipal,
+        },
+      },
+
+      // ── Commission KPIs ────────────────────────────────────────────────────
+      commissions: {
+        byStatus: commStatus, // net ₦ per status: pending/approved/paid/clawedback
+        totalWht: commWhtAgg[0]?.wht || 0, // WHT on confirmed (approved+paid) commissions
+        bySource: commBySourceAgg.map((s) => ({
+          label: s._id === "buy2sell" ? "Buy2Sell" : "Lands",
+          count: s.count,
+          net: s.net,
+        })),
+        byLevel: commByLevelAgg.map((l) => ({
+          level: l._id,
+          count: l.count,
+          net: l.net,
+        })),
+        monthly: {
+          labels: monthLabels.map((m) => m.label),
+          paid: commMonthlyPaid,
+        },
+      },
+
+      // ── Top Realtors (by confirmed net commission) ────────────────────────
+      topRealtors: topRealtorsAgg.map((r) => ({
+        id: r._id?.toString() || "",
+        name: r.name,
+        email: r.email,
+        totalEarned: r.totalEarned,
+        dealCount: r.dealCount,
+      })),
     });
   } catch (err) {
     console.error("ANALYTICS ERROR:", err);

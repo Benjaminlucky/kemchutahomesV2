@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildB2STrendRows,
+  buildCommissionTrendRows,
   buildFunnelSteps,
   buildTrendRows,
   fmtCompact,
@@ -36,6 +38,37 @@ function makeAnalytics(overrides: Partial<Analytics> = {}): Analytics {
       monthly: { labels: ["Mar", "Apr", "May", "Jun", "Jul", "Aug"], counts: [5, 6, 7, 8, 12, 12] },
     },
     estates: { total: 9, active: 7 },
+    buy2sell: {
+      total: 15,
+      byStatus: { pending: 2, partial_paid: 1, active: 6, matured: 2, paid_out: 3, closed: 1 },
+      totalPrincipal: 45_000_000,
+      totalExpectedROI: 21_600_000,
+      totalPaidOut: 9_000_000,
+      maturingSoon30Days: 2,
+      byDuration: [{ label: "12 Months", count: 8, principal: 24_000_000 }],
+      monthly: {
+        labels: ["Mar", "Apr", "May", "Jun", "Jul", "Aug"],
+        counts: [1, 2, 2, 3, 3, 4],
+        principal: [0, 2_000_000, 3_000_000, 5_000_000, 6_000_000, 8_000_000],
+      },
+    },
+    commissions: {
+      byStatus: { pending: 500_000, approved: 300_000, paid: 1_200_000, clawedback: 100_000 },
+      totalWht: 75_000,
+      bySource: [
+        { label: "Lands", count: 10, net: 1_000_000 },
+        { label: "Buy2Sell", count: 4, net: 500_000 },
+      ],
+      byLevel: [
+        { level: 1, count: 8, net: 900_000 },
+        { level: 2, count: 4, net: 350_000 },
+      ],
+      monthly: {
+        labels: ["Mar", "Apr", "May", "Jun", "Jul", "Aug"],
+        paid: [0, 100_000, 150_000, 200_000, 300_000, 450_000],
+      },
+    },
+    topRealtors: [{ id: "r1", name: "Jane Doe", email: "jane@example.com", totalEarned: 800_000, dealCount: 6 }],
     ...overrides,
   };
 }
@@ -131,5 +164,30 @@ describe("buildFunnelSteps", () => {
     a.subscriptions.total = 0;
     a.subscriptions.byStatus = { pending: 0, reviewed: 0, approved: 0, rejected: 0 };
     expect(buildFunnelSteps(a).map((s) => s.pct)).toEqual([100, 0, 0, 0]);
+  });
+});
+
+describe("buildB2STrendRows", () => {
+  it("zips the Buy2Sell monthly series onto one row per month", () => {
+    const rows = buildB2STrendRows(makeAnalytics());
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toEqual({ month: "Mar", Leads: 1, Principal: 0 });
+    expect(rows[5]).toEqual({ month: "Aug", Leads: 4, Principal: 8_000_000 });
+  });
+
+  it("zero-fills a missing point instead of throwing", () => {
+    const a = makeAnalytics();
+    a.buy2sell.monthly = { labels: ["Mar"], counts: [], principal: [] };
+    const rows = buildB2STrendRows(a);
+    expect(rows).toEqual([{ month: "Mar", Leads: 0, Principal: 0 }]);
+  });
+});
+
+describe("buildCommissionTrendRows", () => {
+  it("zips the commission payout monthly series onto one row per month", () => {
+    const rows = buildCommissionTrendRows(makeAnalytics());
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toEqual({ month: "Mar", Paid: 0 });
+    expect(rows[5]).toEqual({ month: "Aug", Paid: 450_000 });
   });
 });

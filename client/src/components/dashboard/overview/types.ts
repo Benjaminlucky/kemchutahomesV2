@@ -5,6 +5,8 @@ import { fmtNGN } from "@/components/client-portal/portalFormat";
 
 export type SubscriptionStatus = "pending" | "reviewed" | "approved" | "rejected";
 export type InspectionStatus = "pending" | "confirmed" | "cancelled" | "completed";
+export type Buy2SellStatus = "pending" | "partial_paid" | "active" | "matured" | "paid_out" | "closed";
+export type CommissionStatus = "pending" | "approved" | "paid" | "clawedback";
 
 export type Analytics = {
   realtors: {
@@ -33,6 +35,24 @@ export type Analytics = {
     monthly: { labels: string[]; counts: number[] };
   };
   estates: { total: number; active: number };
+  buy2sell: {
+    total: number;
+    byStatus: Record<Buy2SellStatus, number>;
+    totalPrincipal: number;
+    totalExpectedROI: number;
+    totalPaidOut: number;
+    maturingSoon30Days: number;
+    byDuration: { label: string; count: number; principal: number }[];
+    monthly: { labels: string[]; counts: number[]; principal: number[] };
+  };
+  commissions: {
+    byStatus: Record<CommissionStatus, number>; // ₦ net per status
+    totalWht: number;
+    bySource: { label: string; count: number; net: number }[];
+    byLevel: { level: number; count: number; net: number }[];
+    monthly: { labels: string[]; paid: number[] };
+  };
+  topRealtors: { id: string; name: string; email: string; totalEarned: number; dealCount: number }[];
 };
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -62,6 +82,22 @@ export const INSP_STATUS_COLOR: Record<InspectionStatus, string> = {
   confirmed: CHART.purple,
   cancelled: CHART.red,
   completed: CHART.green,
+};
+
+export const B2S_STATUS_COLOR: Record<Buy2SellStatus, string> = {
+  pending: CHART.amber,
+  partial_paid: CHART.blue,
+  active: CHART.purple,
+  matured: CHART.purpleMid,
+  paid_out: CHART.green,
+  closed: CHART.axis,
+};
+
+export const COMM_STATUS_COLOR: Record<CommissionStatus, string> = {
+  pending: CHART.amber,
+  approved: CHART.blue,
+  paid: CHART.green,
+  clawedback: CHART.red,
 };
 
 // ── Formatting ───────────────────────────────────────────────────────────────
@@ -168,4 +204,23 @@ export function buildFunnelSteps(a: Analytics): FunnelStep[] {
       color: CHART.green,
     },
   ];
+}
+
+export type B2STrendRow = { month: string; Leads: number; Principal: number };
+
+export function buildB2STrendRows(a: Analytics): B2STrendRow[] {
+  return a.buy2sell.monthly.labels.map((month, i) => ({
+    month,
+    Leads: a.buy2sell.monthly.counts[i] ?? 0,
+    Principal: a.buy2sell.monthly.principal[i] ?? 0,
+  }));
+}
+
+export type CommissionTrendRow = { month: string; Paid: number };
+
+export function buildCommissionTrendRows(a: Analytics): CommissionTrendRow[] {
+  return a.commissions.monthly.labels.map((month, i) => ({
+    month,
+    Paid: a.commissions.monthly.paid[i] ?? 0,
+  }));
 }
