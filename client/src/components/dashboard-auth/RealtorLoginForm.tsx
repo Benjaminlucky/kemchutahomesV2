@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, CheckCircle } from "lucide-react";
 import { FormField, textInputClass, SubmitButton } from "@/components/client-auth/FormField";
 
 export default function RealtorLoginForm() {
@@ -11,6 +11,7 @@ export default function RealtorLoginForm() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,14 +27,31 @@ export default function RealtorLoginForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Login failed.");
-      router.push("/dashboard");
-      router.refresh();
+      // Briefly confirm success before navigating — an instant redirect with
+      // zero feedback left users unsure whether their click even registered.
+      setSuccess(true);
+      setTimeout(() => {
+        router.push("/dashboard");
+        router.refresh();
+      }, 900);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+          <CheckCircle className="text-green-600" size={32} />
+        </div>
+        <h3 className="mb-2 text-xl font-bold text-gray-800">Welcome back!</h3>
+        <p className="text-sm text-gray-500">Login successful — redirecting to your dashboard…</p>
+      </div>
+    );
+  }
 
   return (
     <div>
