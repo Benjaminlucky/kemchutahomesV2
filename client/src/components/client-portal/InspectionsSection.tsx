@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { ArrowLeft, Calendar, CalendarCheck } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import { fmtDate } from "./portalFormat";
@@ -40,27 +43,43 @@ export default function InspectionsSection({
         <ArrowLeft size={16} /> Back to portal
       </Link>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-customBlack-900">Inspection Bookings</h1>
-          <p className="mt-1 text-sm text-customBlack-400">Your site visit schedule</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {STATUSES.map((s) => (
-            <Link
-              key={s.value || "all"}
-              href={buildHref(s.value, 1)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                status === s.value ? "bg-customPurple-500 text-white shadow-md" : "bg-customBlack-50 text-customBlack-500 hover:bg-customPurple-50"
-              }`}
-            >
-              {s.label}
-            </Link>
-          ))}
+      <div
+        className="relative overflow-hidden rounded-[2rem] px-6 py-7 text-white sm:px-8"
+        style={{ background: "linear-gradient(135deg, #3F0C91, #700CEB)" }}
+      >
+        <div className="pointer-events-none absolute -top-10 -right-10 h-48 w-48 rounded-full bg-white/5" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
+              <CalendarCheck size={20} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tight sm:text-2xl">Inspection Bookings</h1>
+              <p className="mt-0.5 text-sm text-white/60">Your site visit schedule</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {STATUSES.map((s) => (
+              <Link
+                key={s.value || "all"}
+                href={buildHref(s.value, 1)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                  status === s.value ? "bg-white text-customPurple-700 shadow-md" : "bg-white/10 text-white/70 backdrop-blur-sm hover:bg-white/20"
+                }`}
+              >
+                {s.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[2rem] border border-customBlack-100 bg-white shadow-sm">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.1 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-hidden rounded-[2rem] border border-customBlack-100 bg-white shadow-sm">
         {inspections.length === 0 ? (
           <div className="py-20 text-center">
             <CalendarCheck size={40} className="mx-auto mb-4 text-customBlack-200" />
@@ -153,7 +172,7 @@ export default function InspectionsSection({
             )}
           </>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

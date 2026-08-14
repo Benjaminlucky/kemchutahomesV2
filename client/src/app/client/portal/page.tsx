@@ -50,23 +50,45 @@ export default async function ClientPortalPage() {
   const dashboard: ClientDashboard | null = dashboardRes.ok ? await dashboardRes.json() : null;
 
   return (
-    <div className="mx-auto w-11/12 max-w-5xl py-16 lg:w-10/12">
-      <div className="mb-10 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold tracking-widest text-customPurple-500 uppercase">Client Portal</p>
-          <h1 className="mt-1 text-3xl font-bold text-customBlack-900">Welcome back, {client.firstName}</h1>
-          <p className="mt-1 text-sm text-gray-500">{client.email}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/client/portal/inspections"
-            className="inline-flex items-center gap-2 rounded-full border-2 px-5 py-2.5 text-sm font-semibold text-customPurple-600 transition-colors hover:bg-customPurple-50"
-            style={{ borderColor: "rgba(112,12,235,0.35)" }}
-          >
-            <CalendarCheck size={15} />
-            My Inspections
-          </Link>
-          <LogoutButton />
+    <div className="mx-auto w-11/12 max-w-5xl py-10 lg:w-10/12 lg:py-16">
+      <div
+        className="relative mb-10 overflow-hidden rounded-[2rem] px-6 py-8 text-white sm:px-9 sm:py-10"
+        style={{ background: "linear-gradient(135deg, #3F0C91, #700CEB)" }}
+      >
+        <div className="pointer-events-none absolute -top-12 -right-12 h-56 w-56 rounded-full bg-white/5" />
+        <div className="pointer-events-none absolute -bottom-20 -left-14 h-64 w-64 rounded-full bg-white/5" />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)",
+            backgroundSize: "44px 44px",
+          }}
+        />
+
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-black backdrop-blur-sm">
+              {client.firstName?.[0]?.toUpperCase() || "K"}
+            </div>
+            <div>
+              <p className="text-[11px] font-bold tracking-widest text-white/60 uppercase">Client Portal</p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
+                Welcome back, {client.firstName}
+              </h1>
+              <p className="mt-1 text-sm text-white/60">{client.email}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/client/portal/inspections"
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-sm font-bold whitespace-nowrap text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+            >
+              <CalendarCheck size={15} />
+              My Inspections
+            </Link>
+            <LogoutButton variant="dark" />
+          </div>
         </div>
       </div>
 
