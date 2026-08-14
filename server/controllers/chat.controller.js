@@ -1,7 +1,10 @@
 /**
  * controllers/chat.controller.js
  * ─────────────────────────────────────────────────────────────────────────────
- * AI chat endpoint — Groq (Llama 3.3 70B, free tier).
+ * AI chat endpoint — Groq (openai/gpt-oss-120b). Was llama-3.3-70b-versatile
+ * until Groq deprecated it (shutdown 2026-08-16); gpt-oss-120b is Groq's
+ * recommended, OpenAI-compatible replacement — same request/response shape,
+ * larger context window, and cheaper input pricing.
  * Builds a DYNAMIC system prompt from live MongoDB data on every request:
  *   • Estates   — names, locations, prices, titles (from Estate collection)
  *   • ROI rates — live from ROISettings collection
@@ -131,9 +134,11 @@ export async function buildSystemPrompt() {
   const exROI = Math.round((5_000_000 * roi12) / 100);
   const exTotal = 5_000_000 + exROI;
 
-  return `You are Kemchuta, the friendly and knowledgeable AI assistant for Kemchuta Homes Limited — a reputable Nigerian real estate company.
+  return `You are Ada, the friendly and knowledgeable AI assistant for Kemchuta Homes Limited — a reputable Nigerian real estate company.
 
 Your role: answer visitor questions instantly and accurately, reduce calls to the team, and guide potential clients toward booking inspections or subscribing.
+
+Introduce yourself as Ada on your first reply in a conversation, and whenever asked your name. You are an AI assistant, not a human — never claim otherwise.
 
 ${noticesBlock}
 ═══ COMPANY CONTACTS (always use these exact details) ═══
@@ -227,24 +232,30 @@ export async function getFallbackPhone() {
 // POST /api/chat
 // ─────────────────────────────────────────────────────────────────────────────
 export const handleChat = async (req, res) => {
+  const { messages, stream: wantsStream } = req.body;
+
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ message: "messages array is required" });
+  }
+
+  const valid = messages.every(
+    (m) =>
+      m.role &&
+      ["user", "assistant"].includes(m.role) &&
+      typeof m.content === "string" &&
+      m.content.trim().length > 0,
+  );
+  if (!valid) {
+    return res.status(400).json({ message: "Invalid message format" });
+  }
+
+  // Cancels the upstream Groq request the moment the client disconnects
+  // (widget closed, tab closed, navigation mid-stream) — otherwise we'd keep
+  // paying for/generating tokens nobody will ever read.
+  const abortController = new AbortController();
+  req.on("close", () => abortController.abort());
+
   try {
-    const { messages } = req.body;
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ message: "messages array is required" });
-    }
-
-    const valid = messages.every(
-      (m) =>
-        m.role &&
-        ["user", "assistant"].includes(m.role) &&
-        typeof m.content === "string" &&
-        m.content.trim().length > 0,
-    );
-    if (!valid) {
-      return res.status(400).json({ message: "Invalid message format" });
-    }
-
     // Build the dynamic prompt (cached, TTL 5 min — see utils/chatPromptCache.js)
     // + trim history to last 20 messages
     const [systemPrompt, trimmed] = await Promise.all([
@@ -261,11 +272,13 @@ export const handleChat = async (req, res) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "openai/gpt-oss-120b",
           max_tokens: 600,
           temperature: 0.4,
+          stream: wantsStream,
           messages: [{ role: "system", content: systemPrompt }, ...trimmed],
         }),
+        signal: abortController.signal,
       },
     );
 
@@ -276,14 +289,46 @@ export const handleChat = async (req, res) => {
       );
     }
 
-    const data = await groqRes.json();
-    const reply =
-      data.choices?.[0]?.message?.content?.trim() ||
-      `I'm sorry, I couldn't generate a response. Please call ${await getFallbackPhone()}.`;
+    // ── Non-streaming path — unchanged JSON response ──────────────────────
+    if (!wantsStream) {
+      const data = await groqRes.json();
+      const reply =
+        data.choices?.[0]?.message?.content?.trim() ||
+        `I'm sorry, I couldn't generate a response. Please call ${await getFallbackPhone()}.`;
+      return res.json({ reply });
+    }
 
-    res.json({ reply });
+    // ── Streaming path — relay Groq's SSE bytes straight through ──────────
+    // Groq's stream is already OpenAI-format `data: {...}\n\n` chunks with
+    // `choices[0].delta.content` — no re-parsing needed, just forward the
+    // raw bytes so the client's own SSE reader can consume them directly.
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    const reader = groqRes.body.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    } finally {
+      res.end();
+    }
   } catch (err) {
+    if (err.name === "AbortError") return; // client disconnected — nothing to send back
     console.error("Chat error:", err.message);
+
+    if (res.headersSent) {
+      // Already mid-stream (headers/status committed) — can't switch to a
+      // JSON error body, so signal failure as one more SSE event instead.
+      // The client's stream reader treats this the same as a network error.
+      res.write(`data: ${JSON.stringify({ error: true })}\n\n`);
+      return res.end();
+    }
+
     res.status(500).json({
       message: `Chat unavailable right now. Please call ${await getFallbackPhone()}.`,
     });

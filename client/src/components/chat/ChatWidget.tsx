@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { MessageCircle, X, Send } from "lucide-react";
+import { MessageCircle, X, Send, RotateCcw, RefreshCw } from "lucide-react";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -10,6 +11,25 @@ type CompanyInfo = {
   whatsappNumber: string;
   lagosPhone: string;
 };
+
+const STORAGE_KEY = "ada-chat-session";
+
+// Reads a persisted conversation (sessionStorage — survives a refresh,
+// cleared when the tab closes). Fed into useState's lazy-initializer form
+// below so restoring on mount is a render-time read, not a setState-in-effect
+// (which triggers an avoidable extra render and trips
+// react-hooks/set-state-in-effect).
+function readStoredSession(): { messages: ChatMessage[]; greetedOnce: boolean } {
+  if (typeof window === "undefined") return { messages: [], greetedOnce: false };
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return { messages: [], greetedOnce: false };
+    const saved = JSON.parse(raw) as { messages?: ChatMessage[]; greetedOnce?: boolean };
+    return { messages: saved.messages ?? [], greetedOnce: !!saved.greetedOnce };
+  } catch {
+    return { messages: [], greetedOnce: false };
+  }
+}
 
 const STARTERS = [
   "How does the Buy2Sell investment work?",
@@ -21,7 +41,7 @@ const STARTERS = [
 ];
 
 const AUTO_GREETING =
-  "Hi there! 👋 Welcome to Kemchuta Homes. I'm your personal assistant — I can help you with land subscriptions, Buy2Sell investments, site inspections, estate prices, and more. What would you like to know?";
+  "Hi there! 👋 I'm **Ada**, your Kemchuta Homes assistant. I can help you with land subscriptions, Buy2Sell investments, site inspections, estate prices, and more. What would you like to know?";
 
 // Two-note chime (C5 then E5) via the Web Audio API — no audio asset needed.
 function playChime() {
@@ -125,6 +145,20 @@ function PulseDot() {
   );
 }
 
+function AdaAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
+  const px = size === "md" ? 40 : 28;
+  return (
+    <Image
+      src="/assets/ada-avatar.svg"
+      alt=""
+      width={px}
+      height={px}
+      className="shrink-0 rounded-full"
+      aria-hidden
+    />
+  );
+}
+
 function WhatsAppIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -133,22 +167,42 @@ function WhatsAppIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+const iconButtonClass =
+  "flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70";
+
 export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }) {
   const reduceMotion = useReducedMotion();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Lazy initializers restore a persisted conversation on mount (see
+  // readStoredSession above) — the onboarding timers below check
+  // `greetedOnce` and skip their first-time-visitor choreography for a
+  // returning-mid-session visitor.
+  const [messages, setMessages] = useState<ChatMessage[]>(() => readStoredSession().messages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [waitingForFirstToken, setWaitingForFirstToken] = useState(false);
+  const [failedMessage, setFailedMessage] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const [shaking, setShaking] = useState(false);
-  const [greetedOnce, setGreetedOnce] = useState(false);
+  const [greetedOnce, setGreetedOnce] = useState(() => readStoredSession().greetedOnce);
   const [autoTyping, setAutoTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const lastHistoryRef = useRef<ChatMessage[]>(messages);
+  const abortRef = useRef<AbortController | null>(null);
 
   const whatsappHref = `https://wa.me/${companyInfo.whatsappNumber.replace(/[^0-9]/g, "")}`;
   const fallbackMessage = `I'm having trouble connecting. Please call **${companyInfo.lagosPhone}** or WhatsApp us.`;
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, greetedOnce }));
+    } catch {
+      // storage full/blocked (private browsing) — non-fatal, conversation just won't persist
+    }
+  }, [messages, greetedOnce]);
 
   // Step 1: bounce the button into existence after 3s.
   useEffect(() => {
@@ -156,16 +210,17 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
     return () => clearTimeout(t);
   }, []);
 
-  // Step 2: shake + tooltip 8s after mount (5s after the bounce-in).
+  // Step 2: shake + tooltip 8s after mount (5s after the bounce-in) — skipped
+  // for a returning visitor who already has a conversation (greetedOnce).
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || greetedOnce) return;
     const t = setTimeout(() => {
       setShaking(true);
       setShowTooltip(true);
       setTimeout(() => setShaking(false), 700);
     }, 5000);
     return () => clearTimeout(t);
-  }, [mounted]);
+  }, [mounted, greetedOnce]);
 
   const greet = useCallback(() => {
     setGreetedOnce(true);
@@ -178,7 +233,8 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
   }, []);
 
   // Step 3: auto-open + greet 12s after mount, unless the user already
-  // opened it (which cancels this and greets immediately instead).
+  // opened it (which cancels this and greets immediately instead) or a
+  // restored conversation means they've already been greeted before.
   useEffect(() => {
     if (!mounted || greetedOnce) return;
     const t = setTimeout(() => {
@@ -190,13 +246,31 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
     return () => clearTimeout(t);
   }, [mounted, greetedOnce, open, greet]);
 
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    launcherRef.current?.focus();
+  }, []);
+
   const handleToggle = () => {
-    const willOpen = !open;
-    setOpen(willOpen);
+    if (open) {
+      closePanel();
+      return;
+    }
+    setOpen(true);
     setShowTooltip(false);
     setShaking(false);
-    if (willOpen && !greetedOnce) greet();
+    if (!greetedOnce) greet();
   };
+
+  // Escape closes the panel, matching standard dialog behavior.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closePanel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, closePanel]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
@@ -206,38 +280,139 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
     if (open) setTimeout(() => inputRef.current?.focus(), 350);
   }, [open]);
 
-  const send = useCallback(
-    async (text?: string) => {
-      const content = (text ?? input).trim();
-      if (!content || loading) return;
+  // Cancel any in-flight request the moment the panel closes or the widget
+  // unmounts — no point paying for/generating tokens nobody will read.
+  useEffect(() => {
+    if (!open) abortRef.current?.abort();
+  }, [open]);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
-      const userMsg: ChatMessage = { role: "user", content };
-      const history = [...messages, userMsg];
-      setMessages(history);
-      setInput("");
+  const requestReply = useCallback(
+    async (history: ChatMessage[]) => {
       setLoading(true);
+      setWaitingForFirstToken(true);
+      setFailedMessage(null);
+
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history }),
+          body: JSON.stringify({ messages: history, stream: true }),
+          signal: controller.signal,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
+
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
           const reply = res.status === 429 && data.message ? data.message : fallbackMessage;
           setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+          if (res.status !== 429) {
+            lastHistoryRef.current = history;
+            setFailedMessage(history[history.length - 1]?.content ?? null);
+          }
           return;
         }
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply || fallbackMessage }]);
-      } catch {
+
+        // Placeholder the streaming reply lands into — MessageText skips
+        // rendering an assistant bubble with empty content, so this stays
+        // invisible (the typing indicator covers that gap) until the first
+        // token arrives.
+        setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let accumulated = "";
+        let sawError = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop() ?? "";
+
+          for (const evt of events) {
+            const line = evt.trim();
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.error) {
+                sawError = true;
+                continue;
+              }
+              const token = parsed.choices?.[0]?.delta?.content;
+              if (token) {
+                accumulated += token;
+                setWaitingForFirstToken(false);
+                setMessages((prev) => {
+                  const next = [...prev];
+                  next[next.length - 1] = { role: "assistant", content: accumulated };
+                  return next;
+                });
+              }
+            } catch {
+              // partial/malformed chunk — SSE framing guarantees the next
+              // complete event will parse fine, so just skip this one
+            }
+          }
+        }
+
+        if (sawError || !accumulated) {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { role: "assistant", content: fallbackMessage };
+            return next;
+          });
+          lastHistoryRef.current = history;
+          setFailedMessage(history[history.length - 1]?.content ?? null);
+        }
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
         setMessages((prev) => [...prev, { role: "assistant", content: fallbackMessage }]);
+        lastHistoryRef.current = history;
+        setFailedMessage(history[history.length - 1]?.content ?? null);
       } finally {
         setLoading(false);
+        setWaitingForFirstToken(false);
       }
     },
-    [input, messages, loading, fallbackMessage],
+    [fallbackMessage],
   );
+
+  const send = useCallback(
+    (text?: string) => {
+      const content = (text ?? input).trim();
+      if (!content || loading) return;
+
+      const userMsg: ChatMessage = { role: "user", content };
+      const history = [...messages, userMsg];
+      lastHistoryRef.current = history;
+      setMessages(history);
+      setInput("");
+      requestReply(history);
+    },
+    [input, messages, loading, requestReply],
+  );
+
+  const retry = useCallback(() => {
+    if (!failedMessage || loading) return;
+    requestReply(lastHistoryRef.current);
+  }, [failedMessage, loading, requestReply]);
+
+  const resetConversation = useCallback(() => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setFailedMessage(null);
+    setLoading(false);
+    setWaitingForFirstToken(false);
+    lastHistoryRef.current = [];
+  }, []);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -252,7 +427,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
 
   return (
     <>
-      <div className="fixed right-5 bottom-5 z-[9998] sm:right-6 sm:bottom-6">
+      <div className="fixed right-5 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[9998] sm:right-6 sm:bottom-6">
         <AnimatePresence>
           {!open && showTooltip && (
             <motion.div
@@ -263,11 +438,9 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
               className="pointer-events-none absolute right-0 bottom-[74px] w-64 rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-customPurple-100"
             >
               <div className="mb-2 flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3F0C91] to-customPurple-600 text-base">
-                  🏠
-                </div>
+                <AdaAvatar />
                 <div>
-                  <p className="text-xs font-extrabold text-customBlack-900">Kemchuta Assistant</p>
+                  <p className="text-xs font-extrabold text-customBlack-900">Ada</p>
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <PulseDot />
                     <p className="text-[10px] text-customBlack-400">Online now</p>
@@ -283,12 +456,13 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
         </AnimatePresence>
 
         <motion.button
+          ref={launcherRef}
           onClick={handleToggle}
-          aria-label={open ? "Close chat" : "Open chat"}
+          aria-label={open ? "Close chat" : "Chat with Ada"}
+          aria-expanded={open}
           animate={shaking && !reduceMotion ? { x: [0, -4, 4, -4, 4, 0] } : {}}
           transition={{ duration: 0.5 }}
-          className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-2xl"
-          style={{ background: "linear-gradient(135deg, #3F0C91, #700CEB)" }}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-customPurple-900 to-customPurple-500 text-white shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-customPurple-300 focus-visible:ring-offset-2"
         >
           {open ? <X size={24} /> : <MessageCircle size={24} />}
         </motion.button>
@@ -297,56 +471,63 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
       <AnimatePresence>
         {open && (
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chat with Ada"
             initial={{ opacity: 0, y: 16, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.97 }}
             transition={reduceMotion ? { duration: 0.15 } : { type: "spring", duration: 0.4 }}
-            className="fixed right-5 bottom-24 z-[9998] flex h-[70vh] max-h-[600px] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-customBlack-100 sm:right-6 sm:bottom-[104px]"
+            className="fixed inset-0 z-[9998] flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:inset-auto sm:right-6 sm:bottom-[104px] sm:h-[70dvh] sm:max-h-[600px] sm:w-[calc(100vw-2.5rem)] sm:max-w-sm sm:rounded-3xl sm:ring-1 sm:ring-customBlack-100"
           >
             {/* Header */}
-            <div
-              className="flex items-center gap-3 px-4 py-3.5"
-              style={{ background: "linear-gradient(135deg, #3F0C91, #700CEB)" }}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-xl">🏠</div>
+            <div className="flex items-center gap-3 bg-gradient-to-br from-customPurple-900 to-customPurple-500 px-4 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5 sm:pt-3.5">
+              <AdaAvatar size="md" />
               <div className="flex-1">
-                <p className="text-sm font-extrabold text-white">Kemchuta Assistant</p>
+                <p className="text-sm font-extrabold text-white">Ada</p>
                 <div className="mt-0.5 flex items-center gap-1.5">
                   <PulseDot />
-                  <p className="text-[11px] text-white/70">Online · Replies instantly</p>
+                  <p className="text-[11px] text-white/70">Kemchuta Homes AI Assistant</p>
                 </div>
               </div>
+              {messages.length > 0 && (
+                <button
+                  onClick={resetConversation}
+                  aria-label="Start a new conversation"
+                  title="Start a new conversation"
+                  className={iconButtonClass}
+                >
+                  <RotateCcw size={15} />
+                </button>
+              )}
               <a
                 href={whatsappHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Chat with a human on WhatsApp"
-                className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
+                className={iconButtonClass}
               >
                 <WhatsAppIcon />
               </a>
+              <button onClick={closePanel} aria-label="Close chat" className={iconButtonClass}>
+                <X size={16} />
+              </button>
             </div>
 
             {/* Messages */}
-            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-3.5 py-4">
-              {autoTyping && (
-                <div className="flex items-end gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3F0C91] to-customPurple-600 text-xs">
-                    🏠
-                  </div>
-                  <TypingIndicator />
-                </div>
-              )}
-
+            <div
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+              className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-3.5 py-4"
+            >
               {isFirstOpen && (
                 <div>
                   <div className="mb-3.5 flex items-start gap-2">
-                    <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3F0C91] to-customPurple-600 text-xs">
-                      🏠
-                    </div>
+                    <AdaAvatar />
                     <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-customPurple-50 px-3.5 py-3">
                       <p className="text-[13.5px] leading-relaxed text-customBlack-900">
-                        Hi! I&rsquo;m the Kemchuta Homes assistant. How can I help you today?
+                        Hi! I&rsquo;m Ada, your Kemchuta Homes assistant. How can I help you today?
                       </p>
                     </div>
                   </div>
@@ -357,7 +538,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
                         <button
                           key={s}
                           onClick={() => send(s)}
-                          className="rounded-xl border border-customPurple-100 bg-customPurple-50/60 px-3 py-2 text-left text-[13px] font-semibold text-customPurple-700 transition-colors hover:border-customPurple-300 hover:bg-customPurple-100"
+                          className="rounded-xl border border-customPurple-100 bg-customPurple-50/60 px-3 py-2 text-left text-[13px] font-semibold text-customPurple-700 transition-colors hover:border-customPurple-300 hover:bg-customPurple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-customPurple-400"
                         >
                           {s}
                         </button>
@@ -367,30 +548,43 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
                 </div>
               )}
 
-              {messages.map((m, i) => (
-                <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "items-end"}`}>
-                  {m.role === "assistant" && (
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3F0C91] to-customPurple-600 text-xs">
-                      🏠
+              {messages.map((m, i) => {
+                // The streaming placeholder starts empty — nothing to show
+                // yet, the typing indicator below covers this gap.
+                if (m.role === "assistant" && m.content === "") return null;
+                const isLastMessage = i === messages.length - 1;
+                return (
+                  <div key={i}>
+                    <div className={`flex gap-2 ${m.role === "user" ? "justify-end" : "items-end"}`}>
+                      {m.role === "assistant" && <AdaAvatar />}
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed shadow-sm ${
+                          m.role === "user"
+                            ? "rounded-br-md bg-customPurple-600 text-white"
+                            : "rounded-bl-md bg-customPurple-50 text-customBlack-900"
+                        }`}
+                      >
+                        <MessageText text={m.content} />
+                      </div>
                     </div>
-                  )}
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
-                      m.role === "user"
-                        ? "rounded-br-md bg-customPurple-600 text-white"
-                        : "rounded-bl-md bg-customPurple-50 text-customBlack-900"
-                    }`}
-                  >
-                    <MessageText text={m.content} />
+                    {isLastMessage && failedMessage && !loading && (
+                      <div className="mt-1.5 flex justify-end">
+                        <button
+                          onClick={retry}
+                          className="flex items-center gap-1.5 rounded-full border border-customPurple-200 bg-white px-3 py-1.5 text-[12px] font-bold text-customPurple-700 transition-colors hover:bg-customPurple-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-customPurple-400"
+                        >
+                          <RefreshCw size={12} />
+                          Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
-              {loading && (
+              {(autoTyping || waitingForFirstToken) && (
                 <div className="flex items-end gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3F0C91] to-customPurple-600 text-xs">
-                    🏠
-                  </div>
+                  <AdaAvatar />
                   <TypingIndicator />
                 </div>
               )}
@@ -399,13 +593,14 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
             </div>
 
             {/* Input */}
-            <div className="flex items-end gap-2 border-t border-customBlack-50 p-3">
+            <div className="flex items-end gap-2 border-t border-customBlack-50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value.slice(0, 4000))}
                 onKeyDown={handleKey}
-                placeholder="Ask anything about our estates…"
+                placeholder="Ask Ada anything about our estates…"
+                aria-label="Message to Ada"
                 rows={1}
                 maxLength={4000}
                 className="max-h-24 flex-1 resize-none rounded-xl border border-customBlack-100 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-customPurple-400"
@@ -414,8 +609,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
                 onClick={() => send()}
                 disabled={loading || !input.trim()}
                 aria-label="Send message"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white transition-opacity disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #3F0C91, #700CEB)" }}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-customPurple-900 to-customPurple-500 text-white transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-customPurple-400 disabled:opacity-40"
               >
                 <Send size={16} />
               </button>

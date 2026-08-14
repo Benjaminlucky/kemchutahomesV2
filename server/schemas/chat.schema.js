@@ -13,4 +13,8 @@ export const chatSchema = z.object({
     .array(chatMessageSchema)
     .min(1, "messages array is required")
     .max(50),
+  // Widget always requests streaming; kept optional (default true) so a
+  // non-streaming client (or a future integration) can still get a plain
+  // JSON { reply } response by explicitly passing stream: false.
+  stream: z.boolean().optional().default(true),
 });

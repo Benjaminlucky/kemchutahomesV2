@@ -44,7 +44,16 @@ app.set("trust proxy", 1);
 app.use(helmet());
 
 // ── Compression ───────────────────────────────────────────────────────────────
-app.use(compression());
+// /api/chat streams Server-Sent Events (see chat.controller.js) — compression
+// buffers chunks internally to build its gzip window, which defeats
+// incremental delivery (the client would see nothing until the whole
+// response finished, exactly what streaming is meant to avoid). Excluded by
+// path; every other route still gets the default filter's normal gzip'ing.
+app.use(
+  compression({
+    filter: (req, res) => (req.path === "/api/chat" ? false : compression.filter(req, res)),
+  }),
+);
 
 // ── Structured request logging (PRD FR-6) ────────────────────────────────────
 // Registered early so even a request rejected by CORS or auth still gets
