@@ -145,11 +145,18 @@ export const getClientDashboard = async (req, res) => {
   try {
     const email = req.user.email;
 
-    // Fetch both in parallel — match by email (clients may have invested before registering)
-    const [subscriptions, investments] = await Promise.all([
-      Subscription.find({ email }).sort({ createdAt: -1 }).lean(),
-      Buy2SellLead.find({ email }).sort({ createdAt: -1 }).lean(),
-    ]);
+    // Fetch in parallel — match by email (clients may have invested before registering)
+    const [subscriptions, investments, totalInspections, upcomingInspections] =
+      await Promise.all([
+        Subscription.find({ email }).sort({ createdAt: -1 }).lean(),
+        Buy2SellLead.find({ email }).sort({ createdAt: -1 }).lean(),
+        Inspection.countDocuments({ email }),
+        Inspection.countDocuments({
+          email,
+          status: { $in: ["pending", "confirmed"] },
+          inspectionDate: { $gte: new Date() },
+        }),
+      ]);
 
     // Attach Buy2SellLead virtuals manually (lean() strips them)
     investments.forEach((inv) => {
@@ -215,18 +222,18 @@ export const getClientDashboard = async (req, res) => {
       paidOutInvestments: investments.filter((i) => i.status === "paid_out")
         .length,
 
-      // Inspections (keep for backward compat)
-      totalInspections: 0,
-      upcomingInspections: 0,
+      // Inspections
+      totalInspections,
+      upcomingInspections,
     };
 
-    // Recent items for overview
+    // Recent items for overview — the full subscriptions/investments arrays
+    // (payments, instalment schedules, documents, etc.) aren't needed here;
+    // the portal detail pages fetch a single record via their own endpoints.
     res.json({
       stats,
       recentSubscriptions: subscriptions.slice(0, 3),
       recentInvestments: investments.slice(0, 3),
-      subscriptions,
-      investments,
     });
   } catch (err) {
     console.error("getClientDashboard:", err);

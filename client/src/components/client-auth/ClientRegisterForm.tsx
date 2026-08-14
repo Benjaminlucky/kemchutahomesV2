@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, CheckCircle } from "lucide-react";
 import { FormField, textInputClass, SubmitButton } from "./FormField";
 
 type Errors = Partial<Record<"firstName" | "lastName" | "email" | "password" | "confirmPassword" | "general", string>>;
@@ -21,6 +21,7 @@ export default function ClientRegisterForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const set = (field: keyof typeof form, value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
@@ -60,14 +61,31 @@ export default function ClientRegisterForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Registration failed.");
-      router.push("/client/portal");
-      router.refresh();
+      // Briefly confirm success before navigating — an instant redirect with
+      // zero feedback left users unsure whether their click even registered.
+      setSuccess(true);
+      setTimeout(() => {
+        router.push("/client/portal");
+        router.refresh();
+      }, 900);
     } catch (err) {
       setErrors({ general: err instanceof Error ? err.message : "Registration failed." });
     } finally {
       setLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+          <CheckCircle className="text-green-600" size={32} />
+        </div>
+        <h3 className="mb-2 text-xl font-bold text-gray-800">Account created!</h3>
+        <p className="text-sm text-gray-500">Welcome to Kemchuta Homes — redirecting to your portal…</p>
+      </div>
+    );
+  }
 
   return (
     <div>

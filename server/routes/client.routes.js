@@ -44,6 +44,7 @@ router.post(
 );
 router.get(
   "/check-email",
+  authLimiter,
   validate(checkEmailQuerySchema, "query"),
   checkEmailExists,
 );

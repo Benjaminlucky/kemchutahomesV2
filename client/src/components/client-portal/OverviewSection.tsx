@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ClipboardList, CheckCircle, Clock, Wallet, TrendingUp, Star, Home, ChevronRight } from "lucide-react";
+import { ClipboardList, CheckCircle, Clock, Wallet, TrendingUp, Star, Home, ChevronRight, CalendarCheck } from "lucide-react";
 import StatCard from "./StatCard";
 import StatusBadge from "./StatusBadge";
 import { fmtNGN } from "./portalFormat";
@@ -37,6 +37,24 @@ export default function OverviewSection({ dashboard }: { dashboard: ClientDashbo
             <StatCard label="Active" value={stats.activeInvestments} icon={CheckCircle} delay={0.06} />
             <StatCard label="Invested" value={fmtNGN(stats.totalInvested)} icon={Wallet} delay={0.12} />
             <StatCard label="Expected Payout" value={fmtNGN(stats.totalExpectedPayout)} icon={Star} delay={0.18} />
+          </div>
+        </div>
+      )}
+
+      {stats.totalInspections > 0 && (
+        <div>
+          <div className="mb-3 flex items-center justify-between px-1">
+            <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">Inspections</p>
+            <Link
+              href="/client/portal/inspections"
+              className="inline-flex items-center gap-1 text-xs font-bold text-customPurple-600 hover:text-customPurple-700"
+            >
+              View all <ChevronRight size={12} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:gap-6">
+            <StatCard label="Total" value={stats.totalInspections} icon={CalendarCheck} delay={0} />
+            <StatCard label="Upcoming" value={stats.upcomingInspections} icon={Clock} subtext="Scheduled ahead" delay={0.06} />
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import {
   getAllSubscriptions,
   getSubscriptionById,
   getMySubscriptions,
+  getMySubscriptionById,
   updateSubscriptionStatus,
   confirmSubscription,
   addNote,
@@ -75,6 +76,7 @@ router.get("/:id/documents/:docType", protectAdminOrClient, downloadDocument);
 
 // ── Client portal
 router.get("/my", protectClient, getMySubscriptions);
+router.get("/my/:id", protectClient, getMySubscriptionById);
 
 // ── Admin
 router.get("/", protect, isAdmin, hasPermission("manage_subscriptions"), getAllSubscriptions);

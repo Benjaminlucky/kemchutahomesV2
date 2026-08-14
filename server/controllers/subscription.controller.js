@@ -467,6 +467,31 @@ export const getMySubscriptions = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/subscriptions/my/:id — single subscription (client-owned)
+// A dedicated lookup instead of making the client portal's detail page fetch
+// getMySubscriptions' entire list (every subscription's full document —
+// payments, instalmentSchedule, documents, notes) just to Array.find() one
+// by id client-side. The email filter doubles as the ownership check: a
+// subscription belonging to another client 404s here exactly as it would
+// have silently not appeared in the old full-list-then-find.
+// ─────────────────────────────────────────────────────────────────────────────
+export const getMySubscriptionById = async (req, res) => {
+  if (rejectedInvalidId(req, res)) return;
+  try {
+    const sub = await Subscription.findOne({
+      _id: req.params.id,
+      email: req.user.email,
+    }).lean();
+    if (!sub)
+      return res.status(404).json({ message: "Subscription not found." });
+    res.json(sub);
+  } catch (err) {
+    console.error("getMySubscriptionById:", err.message);
+    res.status(500).json({ message: "Failed to fetch subscription." });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/subscriptions/:id/notes — admin adds a follow-up note
 // ─────────────────────────────────────────────────────────────────────────────
 export const addNote = async (req, res) => {

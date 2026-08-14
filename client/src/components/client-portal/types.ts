@@ -37,14 +37,14 @@ export type DashboardStats = {
   totalExpectedPayout: number;
   maturingInvestments: number;
   paidOutInvestments: number;
+  totalInspections: number;
+  upcomingInspections: number;
 };
 
 export type ClientDashboard = {
   stats: DashboardStats;
   recentSubscriptions: PortalSubscription[];
   recentInvestments: PortalInvestment[];
-  subscriptions: PortalSubscription[];
-  investments: PortalInvestment[];
 };
 
 // ── Subscription detail (GET /api/subscriptions/my — same lean documents as
