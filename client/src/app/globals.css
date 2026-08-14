@@ -35,12 +35,14 @@
   --color-customBlack-900: #000000;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* No dark theme exists anywhere in this app — every component hardcodes
+ * light-mode colors (white cards, near-black text) with zero `dark:`
+ * variants. Letting --background/--foreground flip under a visitor's OS
+ * dark-mode preference doesn't enable a dark theme; it just breaks
+ * contrast on every page whose wrapper doesn't happen to set its own
+ * explicit background (the client portal being the worst-hit example —
+ * near-black body text on a near-black body background). Pin both to the
+ * light values unconditionally until an actual dark theme is designed. */
 
 body {
   background: var(--background);
