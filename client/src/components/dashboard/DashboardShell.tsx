@@ -18,25 +18,49 @@ import {
   Percent,
   Menu,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import LogoutButton from "@/components/client-auth/LogoutButton";
 import QueryProvider from "@/components/dashboard/QueryProvider";
 
-type NavItem = { name: string; path: string; icon: typeof LayoutDashboard };
+type NavItem = {
+  name: string;
+  path: string;
+  icon: typeof LayoutDashboard;
+  // Matches a key in server/config/permissions.js — omitted for nav items
+  // every admin-family role can always see (currently just Dashboard).
+  permissionKey?: string;
+};
 
 const ADMIN_NAV: NavItem[] = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { name: "Manage Realtors", path: "/dashboard/realtors", icon: Users },
-  { name: "Manage Estates", path: "/dashboard/estates", icon: Building2 },
-  { name: "Manage Inspections", path: "/dashboard/inspections", icon: CalendarCheck },
-  { name: "Manage Subscriptions", path: "/dashboard/subscriptions", icon: ClipboardList },
-  { name: "Buy2Sell", path: "/dashboard/buy2sell", icon: Landmark },
-  { name: "Commissions", path: "/dashboard/commissions", icon: Percent },
-  { name: "Contact Info", path: "/dashboard/contact", icon: Contact },
-  { name: "Bank Accounts", path: "/dashboard/bank-accounts", icon: CreditCard },
-  { name: "AI Knowledge Base", path: "/dashboard/knowledge-base", icon: Bot },
-  { name: "Reports", path: "/dashboard/reports", icon: BarChart3 },
+  { name: "Manage Realtors", path: "/dashboard/realtors", icon: Users, permissionKey: "manage_realtors" },
+  { name: "Manage Estates", path: "/dashboard/estates", icon: Building2, permissionKey: "manage_estates" },
+  {
+    name: "Manage Inspections",
+    path: "/dashboard/inspections",
+    icon: CalendarCheck,
+    permissionKey: "manage_inspections",
+  },
+  {
+    name: "Manage Subscriptions",
+    path: "/dashboard/subscriptions",
+    icon: ClipboardList,
+    permissionKey: "manage_subscriptions",
+  },
+  { name: "Buy2Sell", path: "/dashboard/buy2sell", icon: Landmark, permissionKey: "buy2sell" },
+  { name: "Commissions", path: "/dashboard/commissions", icon: Percent, permissionKey: "commissions" },
+  { name: "Contact Info", path: "/dashboard/contact", icon: Contact, permissionKey: "contact_info" },
+  { name: "Bank Accounts", path: "/dashboard/bank-accounts", icon: CreditCard, permissionKey: "bank_accounts" },
+  { name: "AI Knowledge Base", path: "/dashboard/knowledge-base", icon: Bot, permissionKey: "knowledge_base" },
+  { name: "Reports", path: "/dashboard/reports", icon: BarChart3, permissionKey: "reports" },
 ];
+
+const MANAGE_ADMINS_ITEM: NavItem = {
+  name: "Manage Admins",
+  path: "/dashboard/admins",
+  icon: ShieldCheck,
+};
 
 const REALTOR_NAV: NavItem[] = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -51,7 +75,7 @@ function SidebarNav({
   onItemClick,
 }: {
   navItems: NavItem[];
-  role: "admin" | "realtor";
+  role: "admin" | "superadmin" | "realtor";
   pathname: string;
   onItemClick: () => void;
 }) {
@@ -80,7 +104,7 @@ function SidebarNav({
         </nav>
       </div>
       <div className="mt-6 px-4">
-        <LogoutButton redirectTo={role === "admin" ? "/admin/login" : "/login"} variant="dark" />
+        <LogoutButton redirectTo={role === "realtor" ? "/login" : "/admin/login"} variant="dark" />
       </div>
     </>
   );
@@ -88,14 +112,21 @@ function SidebarNav({
 
 export default function DashboardShell({
   role,
+  permissions,
   children,
 }: {
-  role: "admin" | "realtor";
+  role: "admin" | "superadmin" | "realtor";
+  permissions?: string[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const navItems = role === "admin" ? ADMIN_NAV : REALTOR_NAV;
+  const navItems =
+    role === "realtor"
+      ? REALTOR_NAV
+      : role === "superadmin"
+        ? [...ADMIN_NAV, MANAGE_ADMINS_ITEM]
+        : ADMIN_NAV.filter((item) => !item.permissionKey || (permissions ?? []).includes(item.permissionKey));
   const closeMenu = () => setIsOpen(false);
 
   return (

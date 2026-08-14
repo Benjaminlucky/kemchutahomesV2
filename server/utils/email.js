@@ -311,6 +311,108 @@ export const sendAdminPasswordResetEmail = async ({ email, resetUrl }) => {
 };
 
 /**
+ * Send Admin Invite Email — sent when a superadmin invites someone to the
+ * admin portal (or the initial superadmin seed script runs). Links to the
+ * account-setup flow (POST /api/admin/setup-account), not the password
+ * reset flow, though the underlying token mechanism is shared.
+ * @param {Object} params - Contains email, firstName, setupUrl, invitedByEmail
+ * @returns {Promise<Object>} - Returns success status and message ID
+ */
+export const sendAdminInviteEmail = async ({
+  email,
+  firstName,
+  setupUrl,
+  invitedByEmail,
+}) => {
+  console.log(`--- Initiating Admin Invite Email for: ${email} ---`);
+
+  try {
+    const resend = getResend();
+    if (!resend) {
+      console.warn("⚠️  RESEND_API_KEY not set — email skipped");
+      return { success: false, reason: "RESEND_API_KEY missing" };
+    }
+
+    const { data, error } = await resend.emails.send({
+      from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
+      to: email,
+      subject: "You've Been Invited to Kemchuta Homes Admin Portal 🎉",
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: 'Inter', Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
+            .wrapper { width: 100%; background-color: #f5f5f5; padding-bottom: 40px; }
+            .main { background-color: #ffffff; width: 100%; max-width: 600px; margin: 20px auto 0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+            .header { background-color: #700CEB; padding: 50px 20px; text-align: center; }
+            .header h1 { color: #fff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; text-transform: uppercase; }
+            .badge { display: inline-block; background: rgba(255,255,255,0.2); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-top: 10px; letter-spacing: 1px; }
+            .content { padding: 40px 35px; color: #262626; line-height: 1.7; }
+            .content h2 { color: #000; font-size: 22px; margin-top: 0; font-weight: 700; }
+            .content p { font-size: 16px; color: #525252; }
+            .btn-wrapper { text-align: center; margin: 35px 0; }
+            .btn { background-color: #700CEB; color: #fff !important; padding: 16px 36px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(112,12,235,0.25); }
+            .warning-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 14px 18px; margin: 24px 0; }
+            .warning-box p { font-size: 14px; color: #92400e; margin: 0; }
+            .footer { background-color: #171717; padding: 30px; text-align: center; color: #a3a3a3; font-size: 13px; }
+            .footer a { color: #bd80f8; text-decoration: none; font-weight: 600; }
+            .footer p { margin: 8px 0; }
+            .divider { height: 1px; background-color: #404040; margin: 20px auto; width: 80%; }
+          </style>
+        </head>
+        <body>
+          <div class="wrapper">
+            <div class="main">
+              <div class="header">
+                <h1>Kemchuta Homes</h1>
+                <span class="badge">ADMIN PORTAL</span>
+              </div>
+              <div class="content">
+                <h2>You're Invited! 🎉</h2>
+                <p>Hi ${firstName || "there"},</p>
+                <p><strong>${invitedByEmail}</strong> has invited you to join the Kemchuta Homes admin portal. Click the button below to set up your password and activate your account.</p>
+                <div class="btn-wrapper">
+                  <a href="${setupUrl}" class="btn">Set Up My Account</a>
+                </div>
+                <div class="warning-box">
+                  <p>⏰ <strong>This link expires in 7 days.</strong> If you weren't expecting this invite, you can safely ignore this email.</p>
+                </div>
+                <p>For security, never share this link with anyone.</p>
+                <p style="margin-bottom: 0;">Best Regards,</p>
+                <p style="margin-top: 0; color: #700CEB; font-weight: 700;">The Kemchuta Homes Team</p>
+              </div>
+              <div class="footer">
+                <p>
+                  <a href="https://kemchutahomesltd.com/">Website</a> &nbsp;|&nbsp;
+                  <a href="#">Support</a>
+                </p>
+                <div class="divider"></div>
+                <p>&copy; 2026 Kemchuta Homes. All rights reserved.</p>
+                <p>Lekki, Lagos, Nigeria</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    if (error) throw new Error(error.message);
+
+    console.log(`✅ SUCCESS: Admin invite email sent to ${email}`);
+    console.log(`Message ID: ${data.id}`);
+
+    return { success: true, messageId: data.id };
+  } catch (err) {
+    console.error("❌ ADMIN INVITE EMAIL ERROR:", err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
  * Send Inspection Notification Email to Admin
  * @param {Object} inspection - Contains estateName, firstName, lastName, email, phone, inspectionDate, persons
  * @returns {Promise<Object>} - Returns success status and message ID

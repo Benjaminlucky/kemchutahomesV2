@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import CommissionsPanel from "@/components/dashboard/commissions/CommissionsPanel";
 import type { AdminCommissionListResponse, CommissionTierSettings } from "@/components/dashboard/commissions/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 export const PAGE_SIZE = 20;
 
 export default async function ManageCommissionsPage() {
+  await requireAdminAccess("commissions");
   const cookieHeader = (await cookies()).toString();
   const base = process.env.NEXT_PUBLIC_API_BASE_URL;
   let initialLedger: AdminCommissionListResponse | null = null;

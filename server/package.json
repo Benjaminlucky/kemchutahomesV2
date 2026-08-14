@@ -10,7 +10,8 @@
     "start": "node index.js",
     "worker": "node worker.js",
     "worker:dev": "nodemon worker.js",
-    "seed:admin": "node scripts/seedAdmin.js"
+    "seed:admin": "node scripts/seedAdmin.js",
+    "seed:superadmins": "node scripts/seedSuperAdmins.js"
   },
   "author": "Lucky Benjamin",
   "license": "ISC",

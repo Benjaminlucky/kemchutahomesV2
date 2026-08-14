@@ -17,6 +17,7 @@ import {
   protect,
   isAdmin,
   protectClient,
+  hasPermission,
 } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
 import {
@@ -76,20 +77,28 @@ router.get("/:id/documents/:docType", protectAdminOrClient, downloadDocument);
 router.get("/my", protectClient, getMySubscriptions);
 
 // ── Admin
-router.get("/", protect, isAdmin, getAllSubscriptions);
-router.get("/:id", protect, isAdmin, getSubscriptionById);
+router.get("/", protect, isAdmin, hasPermission("manage_subscriptions"), getAllSubscriptions);
+router.get("/:id", protect, isAdmin, hasPermission("manage_subscriptions"), getSubscriptionById);
 router.patch(
   "/:id/status",
   protect,
   isAdmin,
+  hasPermission("manage_subscriptions"),
   validate(updateSubscriptionStatusSchema),
   updateSubscriptionStatus,
 );
-router.patch("/:id/confirm", protect, isAdmin, confirmSubscription);
+router.patch(
+  "/:id/confirm",
+  protect,
+  isAdmin,
+  hasPermission("manage_subscriptions"),
+  confirmSubscription,
+);
 router.post(
   "/:id/notes",
   protect,
   isAdmin,
+  hasPermission("manage_subscriptions"),
   validate(addSubscriptionNoteSchema),
   addNote,
 );
@@ -97,6 +106,7 @@ router.post(
   "/:id/payments",
   protect,
   isAdmin,
+  hasPermission("manage_subscriptions"),
   validate(recordSubscriptionPaymentSchema),
   recordPayment,
 );
@@ -104,12 +114,14 @@ router.patch(
   "/:id/payments/:paymentId/confirm",
   protect,
   isAdmin,
+  hasPermission("manage_subscriptions"),
   confirmPayment,
 );
 router.patch(
   "/:id/allocate",
   protect,
   isAdmin,
+  hasPermission("manage_subscriptions"),
   validate(allocatePlotSchema),
   allocatePlot,
 );

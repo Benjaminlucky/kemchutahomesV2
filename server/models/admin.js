@@ -4,8 +4,25 @@ import bcrypt from "bcryptjs";
 const AdminSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  firstName: { type: String, trim: true },
+  lastName: { type: String, trim: true },
 
-  // ✅ Password reset fields
+  // RBAC — defaults preserve today's behavior for existing documents
+  // (role:"admin", status:"active" with no permissions restriction, since
+  // hasPermission() short-circuits for role:"superadmin" only). Only the
+  // invite flow and the superadmin seed script explicitly set
+  // status:"pending".
+  role: { type: String, enum: ["admin", "superadmin"], default: "admin" },
+  permissions: { type: [String], default: [] },
+  status: {
+    type: String,
+    enum: ["pending", "active", "suspended"],
+    default: "active",
+  },
+  invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", default: null },
+
+  // ✅ Password reset fields — also reused for the account-setup flow
+  // (invite → set-first-password), just with a longer expiry.
   resetPasswordToken: { type: String },
   resetPasswordExpiry: { type: Date },
 

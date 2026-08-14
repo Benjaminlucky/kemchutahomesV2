@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { Estate } from "@/lib/api";
 import EstatesTable from "@/components/dashboard/estates/EstatesTable";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 type EstateListResponse = { estates: Estate[]; total: number; pages: number };
 
@@ -22,6 +23,7 @@ async function fetchEstatesPage(cookieHeader: string, page: number): Promise<Est
 // (the schema caps a single request at 100) rather than truncating the
 // list once the catalogue grows past that.
 export default async function ManageEstatesPage() {
+  await requireAdminAccess("manage_estates");
   const cookieHeader = (await cookies()).toString();
   let estates: Estate[] = [];
   let loadError = false;

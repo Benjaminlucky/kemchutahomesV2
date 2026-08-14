@@ -11,7 +11,7 @@ import {
   toggleEstateStatus,
 } from "../controllers/estate.controller.js";
 
-import { isAdmin, protect } from "../middlewares/authMiddleware.js";
+import { isAdmin, protect, hasPermission } from "../middlewares/authMiddleware.js";
 import { uploadEstateImages } from "../middlewares/upload.middleware.js";
 import { validate, validateMultipart } from "../middlewares/validate.js";
 import {
@@ -33,6 +33,7 @@ router.post(
   "/",
   protect,
   isAdmin,
+  hasPermission("manage_estates"),
   uploadEstateImages,
   validateMultipart(createEstateSchema),
   createEstate,
@@ -41,12 +42,19 @@ router.put(
   "/:id",
   protect,
   isAdmin,
+  hasPermission("manage_estates"),
   uploadEstateImages,
   validateMultipart(updateEstateSchema),
   updateEstate,
 );
-router.delete("/:id", protect, isAdmin, deleteEstate);
-router.delete("/:id/gallery/:publicId", protect, isAdmin, deleteGalleryImage);
-router.patch("/:id/toggle", protect, isAdmin, toggleEstateStatus);
+router.delete("/:id", protect, isAdmin, hasPermission("manage_estates"), deleteEstate);
+router.delete(
+  "/:id/gallery/:publicId",
+  protect,
+  isAdmin,
+  hasPermission("manage_estates"),
+  deleteGalleryImage,
+);
+router.patch("/:id/toggle", protect, isAdmin, hasPermission("manage_estates"), toggleEstateStatus);
 
 export default router;

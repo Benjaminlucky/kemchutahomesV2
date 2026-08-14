@@ -37,13 +37,23 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // 1️⃣ Try Admin first
-    let user = await Admin.findById(decoded.id).select("_id email");
+    let user = await Admin.findById(decoded.id).select(
+      "_id email role permissions status firstName lastName",
+    );
     if (user) {
+      if (user.status === "suspended") {
+        return res
+          .status(403)
+          .json({ message: "Account suspended. Contact a superadmin." });
+      }
       req.user = {
         _id: user._id,
         id: user._id,
         email: user.email,
-        role: "admin",
+        role: user.role,
+        permissions: user.permissions,
+        firstName: user.firstName,
+        lastName: user.lastName,
       };
       return next();
     }
@@ -127,13 +137,14 @@ export const protectClient = async (req, res, next) => {
 };
 
 /**
- * Admin-only guard — UNCHANGED
+ * Admin-only guard — accepts any admin-family role ("admin" or
+ * "superadmin"); superadmin is a superset, not a different track.
  */
 export const isAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ message: "Not authenticated" });
   }
-  if (req.user.role !== "admin") {
+  if (!["admin", "superadmin"].includes(req.user.role)) {
     return res.status(403).json({
       message: "Access denied. Admin privileges required.",
     });
@@ -145,3 +156,34 @@ export const isAdmin = (req, res, next) => {
  * Admin protected routes — UNCHANGED
  */
 export const protectAdmin = [protect, isAdmin];
+
+/**
+ * Superadmin-only guard — for managing other admin accounts. Run after
+ * protect() so req.user is already populated.
+ */
+export const requireSuperAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+  if (req.user.role !== "superadmin") {
+    return res.status(403).json({ message: "Superadmin privileges required." });
+  }
+  next();
+};
+
+/**
+ * Per-section permission guard for regular admins — run after
+ * protect()+isAdmin() so req.user.role is already guaranteed to be
+ * "admin" or "superadmin". Superadmins always pass; admins need the
+ * specific key granted via the admin-management API (see
+ * config/permissions.js for the catalog).
+ */
+export const hasPermission = (key) => (req, res, next) => {
+  if (req.user.role === "superadmin") return next();
+  if (Array.isArray(req.user.permissions) && req.user.permissions.includes(key)) {
+    return next();
+  }
+  return res
+    .status(403)
+    .json({ message: "You do not have permission to access this section." });
+};

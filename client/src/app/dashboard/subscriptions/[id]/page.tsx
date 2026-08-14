@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import SubscriptionProfile from "@/components/dashboard/subscriptions/SubscriptionProfile";
 import type { SubscriptionDetail } from "@/components/dashboard/subscriptions/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 export default async function SubscriptionProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminAccess("manage_subscriptions");
   const { id } = await params;
   const cookieHeader = (await cookies()).toString();
   let initial: SubscriptionDetail | null = null;

@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import Buy2SellPanel from "@/components/dashboard/buy2sell/Buy2SellPanel";
 import type { LeadListResponse, ROISettings } from "@/components/dashboard/buy2sell/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 export const PAGE_SIZE = 20;
 
 export default async function ManageBuy2SellPage() {
+  await requireAdminAccess("buy2sell");
   const cookieHeader = (await cookies()).toString();
   const base = process.env.NEXT_PUBLIC_API_BASE_URL;
   let initialLeads: LeadListResponse | null = null;

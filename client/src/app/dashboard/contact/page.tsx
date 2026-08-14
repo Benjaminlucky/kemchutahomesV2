@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import BranchesPanel from "@/components/dashboard/branches/BranchesPanel";
 import type { Branch } from "@/components/dashboard/branches/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 // Nav label is "Contact Info" but the underlying resource is branch offices
 // (server: /api/branches) — the public /contact page reads the same data.
 export default async function ManageContactPage() {
+  await requireAdminAccess("contact_info");
   const cookieHeader = (await cookies()).toString();
   let initial: Branch[] = [];
 

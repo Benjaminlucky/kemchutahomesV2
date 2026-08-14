@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import SubscriptionsTable from "@/components/dashboard/subscriptions/SubscriptionsTable";
 import type { SubscriptionListResponse } from "@/components/dashboard/subscriptions/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 export const PAGE_SIZE = 20;
 
 export default async function ManageSubscriptionsPage() {
+  await requireAdminAccess("manage_subscriptions");
   const cookieHeader = (await cookies()).toString();
   let initial: SubscriptionListResponse | null = null;
 

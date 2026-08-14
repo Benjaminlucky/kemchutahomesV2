@@ -9,7 +9,7 @@ import {
   updateInspectionNotes,
   deleteInspection,
 } from "../controllers/inspection.controller.js";
-import { protect, isAdmin } from "../middlewares/authMiddleware.js";
+import { protect, isAdmin, hasPermission } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
 import {
   bookInspectionSchema,
@@ -22,19 +22,21 @@ import {
 const router = express.Router();
 
 router.post("/", validate(bookInspectionSchema), bookInspection); // Public
-router.get("/", protect, isAdmin, getAllInspections); // Admin
+router.get("/", protect, isAdmin, hasPermission("manage_inspections"), getAllInspections); // Admin
 router.post(
   "/admin",
   protect,
   isAdmin,
+  hasPermission("manage_inspections"),
   validate(createInspectionAdminSchema),
   createInspectionAdmin,
 ); // Admin — manual create (e.g. phone booking)
-router.get("/:id", protect, isAdmin, getInspectionById); // Admin
+router.get("/:id", protect, isAdmin, hasPermission("manage_inspections"), getInspectionById); // Admin
 router.put(
   "/:id",
   protect,
   isAdmin,
+  hasPermission("manage_inspections"),
   validate(updateInspectionAdminSchema),
   updateInspection,
 ); // Admin — full edit
@@ -42,6 +44,7 @@ router.patch(
   "/:id/status",
   protect,
   isAdmin,
+  hasPermission("manage_inspections"),
   validate(updateInspectionStatusSchema),
   updateInspectionStatus,
 ); // Admin
@@ -49,9 +52,10 @@ router.patch(
   "/:id/notes",
   protect,
   isAdmin,
+  hasPermission("manage_inspections"),
   validate(updateInspectionNotesSchema),
   updateInspectionNotes,
 ); // Admin
-router.delete("/:id", protect, isAdmin, deleteInspection); // Admin
+router.delete("/:id", protect, isAdmin, hasPermission("manage_inspections"), deleteInspection); // Admin
 
 export default router;

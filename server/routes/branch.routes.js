@@ -7,7 +7,7 @@ import {
   deleteBranch,
   seedBranches,
 } from "../controllers/branch.controller.js";
-import { protect, isAdmin } from "../middlewares/authMiddleware.js";
+import { protect, isAdmin, hasPermission } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
 import {
   createBranchSchema,
@@ -21,15 +21,23 @@ router.get("/", getAllBranches); // GET  /api/branches
 router.get("/:id", getBranch); // GET  /api/branches/lagos
 
 // ── Admin-protected ───────────────────────────────────────────────────────────
-router.post("/", protect, isAdmin, validate(createBranchSchema), createBranch); // POST   /api/branches
+router.post(
+  "/",
+  protect,
+  isAdmin,
+  hasPermission("contact_info"),
+  validate(createBranchSchema),
+  createBranch,
+); // POST   /api/branches
 router.put(
   "/:id",
   protect,
   isAdmin,
+  hasPermission("contact_info"),
   validate(updateBranchSchema),
   updateBranch,
 ); // PUT    /api/branches/lagos
-router.delete("/:id", protect, isAdmin, deleteBranch); // DELETE /api/branches/asaba
-router.post("/seed", protect, isAdmin, seedBranches); // POST   /api/branches/seed
+router.delete("/:id", protect, isAdmin, hasPermission("contact_info"), deleteBranch); // DELETE /api/branches/asaba
+router.post("/seed", protect, isAdmin, hasPermission("contact_info"), seedBranches); // POST   /api/branches/seed
 
 export default router;

@@ -17,6 +17,7 @@ import {
   buildTrendRows,
   type Analytics,
 } from "@/components/dashboard/overview/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 // Server Component — everything below is built from the one GET
 // /api/admin/analytics call (all aggregations run server-side in parallel).
@@ -25,6 +26,7 @@ import {
 // Commissions, and realtor-leaderboard picture the home page deliberately
 // keeps out to stay a quick daily glance.
 export default async function ReportsPage() {
+  await requireAdminAccess("reports");
   const cookieHeader = (await cookies()).toString();
   let analytics: Analytics | null = null;
 

@@ -17,6 +17,7 @@ import {
   protect,
   isAdmin,
   protectClient,
+  hasPermission,
 } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
 import {
@@ -79,15 +80,17 @@ router.put(
   "/roi",
   protect,
   isAdmin,
+  hasPermission("buy2sell"),
   validate(updateROISettingsSchema),
   updateROISettings,
 );
-router.get("/leads", protect, isAdmin, getAllLeads);
-router.get("/leads/:id", protect, isAdmin, getLeadById);
+router.get("/leads", protect, isAdmin, hasPermission("buy2sell"), getAllLeads);
+router.get("/leads/:id", protect, isAdmin, hasPermission("buy2sell"), getLeadById);
 router.patch(
   "/leads/:id/status",
   protect,
   isAdmin,
+  hasPermission("buy2sell"),
   validate(updateLeadStatusSchema),
   updateLeadStatus,
 );
@@ -95,14 +98,16 @@ router.post(
   "/leads/:id/record-payment",
   protect,
   isAdmin,
+  hasPermission("buy2sell"),
   validate(recordB2SPaymentSchema),
   recordPayment,
 );
-router.patch("/leads/:id/mature", protect, isAdmin, markMatured);
+router.patch("/leads/:id/mature", protect, isAdmin, hasPermission("buy2sell"), markMatured);
 router.post(
   "/leads/:id/process-payout",
   protect,
   isAdmin,
+  hasPermission("buy2sell"),
   validate(processPayoutSchema),
   processPayout,
 );

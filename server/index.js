@@ -15,6 +15,7 @@ import logger from "./utils/logger.js";
 // ── Route imports ──────────────────────────────────────────────────────────────
 import realtorRoutes from "./routes/realtor.routes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import adminManagementRoutes from "./routes/adminManagement.routes.js";
 import estateRoutes from "./routes/estate.routes.js";
 import subscriptionRoutes from "./routes/subscription.routes.js";
 import inspectionRoutes from "./routes/inspection.routes.js";
@@ -107,6 +108,7 @@ app.get("/healthz", (req, res) => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/realtors", realtorRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminManagementRoutes);
 app.use("/api/admin", analyticsRoutes);
 app.use("/api/estates", estateRoutes);
 app.use("/api/inspections", inspectionRoutes);

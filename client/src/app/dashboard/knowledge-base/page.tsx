@@ -1,10 +1,12 @@
 import KnowledgeBasePanel from "@/components/dashboard/knowledge-base/KnowledgeBasePanel";
 import type { KnowledgeBase } from "@/components/dashboard/knowledge-base/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 // GET /api/knowledge-base is a public endpoint (the chatbot reads it at
 // runtime too), so no cookie forwarding is needed here — unlike most other
 // dashboard pages in this app.
 export default async function ManageKnowledgeBasePage() {
+  await requireAdminAccess("knowledge_base");
   let initial: KnowledgeBase | null = null;
 
   try {

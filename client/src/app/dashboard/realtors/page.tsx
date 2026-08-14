@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import RealtorsTable from "@/components/dashboard/realtors/RealtorsTable";
 import type { RealtorListResponse } from "@/components/dashboard/realtors/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 export const PAGE_SIZE = 10;
 
@@ -8,6 +9,7 @@ export const PAGE_SIZE = 10;
 // paint has data without a loading flash; subsequent page/search changes are
 // handled entirely client-side via TanStack Query (see RealtorsTable).
 export default async function ManageRealtorsPage() {
+  await requireAdminAccess("manage_realtors");
   const cookieHeader = (await cookies()).toString();
   let initial: RealtorListResponse | null = null;
 

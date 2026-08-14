@@ -8,7 +8,7 @@ import {
   getCommissionTiers,
   updateCommissionTiers,
 } from "../controllers/commission.controller.js";
-import { protect, isAdmin } from "../middlewares/authMiddleware.js";
+import { protect, isAdmin, hasPermission } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
 import {
   markCommissionPaidSchema,
@@ -30,6 +30,7 @@ router.put(
   "/tiers",
   protect,
   isAdmin,
+  hasPermission("commissions"),
   validate(updateCommissionTiersSchema),
   updateCommissionTiers,
 ); // PUT  /api/commissions/tiers
@@ -42,6 +43,7 @@ router.get(
   "/",
   protect,
   isAdmin,
+  hasPermission("commissions"),
   validate(commissionQuerySchema, "query"),
   getAllCommissions,
 ); // GET  /api/commissions
@@ -49,6 +51,7 @@ router.patch(
   "/:id/pay",
   protect,
   isAdmin,
+  hasPermission("commissions"),
   validate(markCommissionPaidSchema),
   markCommissionPaid,
 ); // PATCH /api/commissions/:id/pay
@@ -56,6 +59,7 @@ router.patch(
   "/:id/clawback",
   protect,
   isAdmin,
+  hasPermission("commissions"),
   validate(clawbackCommissionSchema),
   clawbackCommission,
 ); // PATCH /api/commissions/:id/clawback
@@ -63,6 +67,7 @@ router.post(
   "/pay-batch",
   protect,
   isAdmin,
+  hasPermission("commissions"),
   validate(payCommissionBatchSchema),
   payCommissionBatch,
 ); // POST  /api/commissions/pay-batch

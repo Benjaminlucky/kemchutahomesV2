@@ -15,7 +15,7 @@ import {
 } from "../controllers/realtor.controller.js";
 
 import { uploadSingleImage } from "../middlewares/upload.middleware.js";
-import { protect, protectAdmin } from "../middlewares/authMiddleware.js";
+import { protect, protectAdmin, hasPermission } from "../middlewares/authMiddleware.js";
 import { authLimiter } from "../middlewares/rateLimiters.js";
 import { validate } from "../middlewares/validate.js";
 import {
@@ -55,14 +55,21 @@ router.post(
 router.get(
   "/export",
   protectAdmin,
+  hasPermission("manage_realtors"),
   validate(realtorExportQuerySchema, "query"),
   exportRealtors,
 );
 
 // ✅ Admin routes (parameterized routes LAST)
-router.get("/", protectAdmin, getRealtors);
-router.get("/:id", protectAdmin, getRealtorById);
-router.put("/:id", protectAdmin, validate(updateRealtorSchema), updateRealtor);
-router.delete("/:id", protectAdmin, deleteRealtor);
+router.get("/", protectAdmin, hasPermission("manage_realtors"), getRealtors);
+router.get("/:id", protectAdmin, hasPermission("manage_realtors"), getRealtorById);
+router.put(
+  "/:id",
+  protectAdmin,
+  hasPermission("manage_realtors"),
+  validate(updateRealtorSchema),
+  updateRealtor,
+);
+router.delete("/:id", protectAdmin, hasPermission("manage_realtors"), deleteRealtor);
 
 export default router;

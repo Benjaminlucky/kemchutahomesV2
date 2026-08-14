@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import InspectionsTable from "@/components/dashboard/inspections/InspectionsTable";
 import type { Inspection } from "@/components/dashboard/inspections/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 type InspectionListResponse = { inspections: Inspection[]; total: number; pages: number };
 
@@ -16,6 +17,7 @@ async function fetchInspectionsPage(cookieHeader: string, page: number): Promise
 }
 
 export default async function ManageInspectionsPage() {
+  await requireAdminAccess("manage_inspections");
   const cookieHeader = (await cookies()).toString();
   let inspections: Inspection[] = [];
   let loadError = false;

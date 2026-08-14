@@ -4,7 +4,7 @@ import AdminOverview from "@/components/dashboard/AdminOverview";
 import RealtorOverview from "@/components/dashboard/RealtorOverview";
 import type { Analytics } from "@/components/dashboard/overview/types";
 
-type CurrentUser = { role: "admin" | "realtor"; email: string };
+type CurrentUser = { role: "admin" | "superadmin" | "realtor"; email: string };
 
 // Role-based landing (PRD Phase 6 foundation). Admin sees the analytics
 // summary already computed server-side (GET /api/admin/analytics); realtor
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
   if (!meRes.ok) redirect("/login");
   const me: CurrentUser = await meRes.json();
 
-  if (me.role === "admin") {
+  if (me.role === "admin" || me.role === "superadmin") {
     const res = await fetch(`${apiBase}/api/admin/analytics`, {
       headers: { Cookie: cookieHeader },
       cache: "no-store",

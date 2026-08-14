@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import BankAccountsPanel from "@/components/dashboard/bank-accounts/BankAccountsPanel";
 import type { BankAccount } from "@/components/dashboard/bank-accounts/types";
+import { requireAdminAccess } from "@/lib/requireAdminAccess";
 
 export default async function ManageBankAccountsPage() {
+  await requireAdminAccess("bank_accounts");
   const cookieHeader = (await cookies()).toString();
   let initial: BankAccount[] = [];
 

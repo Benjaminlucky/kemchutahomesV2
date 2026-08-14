@@ -7,7 +7,7 @@ import { getLockoutStatus, recordFailedLogin, recordSuccessfulLogin } from "../u
 
 const generateToken = (user) =>
   jwt.sign(
-    { id: user._id, role: "admin" }, // ✅ include role
+    { id: user._id, role: user.role }, // ✅ include real role (admin/superadmin)
     process.env.JWT_SECRET,
     { expiresIn: "7d" },
   );
@@ -21,6 +21,10 @@ export const signupAdmin = async (req, res) => {
 
     const admin = await Admin.create({ email, password });
     const token = generateToken(admin);
+    // issueAuthCookies' `role` is RefreshToken.principalType (enum:
+    // admin/realtor/client only) — a distinct concept from the admin's
+    // application-level role (admin/superadmin), which protect() re-reads
+    // from the Admin doc on every request regardless of what's in the JWT.
     await issueAuthCookies(res, { id: admin._id, role: "admin" });
 
     res.status(201).json({
@@ -29,7 +33,7 @@ export const signupAdmin = async (req, res) => {
       user: {
         id: admin._id,
         email: admin.email,
-        role: "admin",
+        role: admin.role,
         firstName: admin.firstName || "",
         lastName: admin.lastName || "",
       },
@@ -53,6 +57,18 @@ export const loginAdmin = async (req, res) => {
       });
     }
 
+    if (admin.status === "pending") {
+      return res.status(403).json({
+        message:
+          "Please finish setting up your account using the link in your invite email.",
+      });
+    }
+    if (admin.status === "suspended") {
+      return res
+        .status(403)
+        .json({ message: "Account suspended. Contact a superadmin." });
+    }
+
     const isMatch = await admin.comparePassword(password);
     if (!isMatch) {
       await recordFailedLogin(admin);
@@ -61,7 +77,7 @@ export const loginAdmin = async (req, res) => {
     await recordSuccessfulLogin(admin);
 
     const token = generateToken(admin);
-    await issueAuthCookies(res, { id: admin._id, role: "admin" });
+    await issueAuthCookies(res, { id: admin._id, role: "admin" }); // see signupAdmin comment
 
     res.json({
       message: "Login successful",
@@ -69,7 +85,7 @@ export const loginAdmin = async (req, res) => {
       user: {
         id: admin._id,
         email: admin.email,
-        role: "admin",
+        role: admin.role,
         firstName: admin.firstName || "",
         lastName: admin.lastName || "",
       },

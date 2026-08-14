@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 
 type CurrentUser = {
-  role: "admin" | "realtor";
+  role: "admin" | "superadmin" | "realtor";
   email: string;
   firstName?: string;
   lastName?: string;
+  permissions?: string[];
 };
 
 // Server Component — forwards the incoming request's cookies to
@@ -28,5 +29,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const user: CurrentUser = await res.json();
 
-  return <DashboardShell role={user.role === "admin" ? "admin" : "realtor"}>{children}</DashboardShell>;
+  return (
+    <DashboardShell role={user.role} permissions={user.permissions}>
+      {children}
+    </DashboardShell>
+  );
 }
