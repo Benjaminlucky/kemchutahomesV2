@@ -324,7 +324,7 @@ export default function Buy2SellPage({
     <div
       style={{
         background: "linear-gradient(180deg,#f5f0ff 0%,#faf8ff 60%,#fff 100%)",
-        minHeight: "100vh",
+        minHeight: "100dvh",
         paddingTop: "72px",
       }}
     >
@@ -635,7 +635,7 @@ export default function Buy2SellPage({
                   >
                     Duration & Return
                   </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 14 }}>
                     {DURATIONS.map((d) => {
                       const sel = duration === d.key;
                       const pct = roi[d.roiKey];
@@ -738,7 +738,7 @@ export default function Buy2SellPage({
                     <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: PURPLE }} />
                     Your Investment Projection
                   </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 12 }}>
                     {(
                       [
                         ["Principal", fmtNGN(amount), "#0f0a1e"],
@@ -890,7 +890,7 @@ export default function Buy2SellPage({
                 >
                   Personal Information
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16, marginBottom: 24 }}>
                   <div style={{ gridColumn: "1/-1" }}>
                     <Field label="Full Name" required error={errors.fullName}>
                       <input
@@ -965,7 +965,7 @@ export default function Buy2SellPage({
                 >
                   Residential Address
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16, marginBottom: 24 }}>
                   <div style={{ gridColumn: "1/-1" }}>
                     <Field label="Street Address" required error={errors.address}>
                       <input
@@ -1018,7 +1018,7 @@ export default function Buy2SellPage({
                 >
                   Means of Identification
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16, marginBottom: 20 }}>
                   <Field label="ID Type" required error={errors.idType}>
                     <select
                       value={kyc.idType}

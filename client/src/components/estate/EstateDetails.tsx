@@ -331,7 +331,7 @@ export default function EstateDetails({ estate }: { estate: Estate }) {
                   <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f0a1e", letterSpacing: "-0.03em" }}>About This Estate</h2>
                 </div>
                 <p style={{ fontSize: 16, color: "#4b5563", lineHeight: 1.9, marginBottom: 32 }}>{estate.desc}</p>
-                <div className="mb-8 grid grid-cols-3 gap-4">
+                <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {(
                     [
                       ["Plot Size", estate.sqm],
@@ -412,7 +412,7 @@ export default function EstateDetails({ estate }: { estate: Estate }) {
                       {estate.estate} Layout
                     </h3>
                     <div className="overflow-hidden rounded-2xl" style={{ border: "1px solid rgba(112,12,235,0.12)", boxShadow: "0 8px 40px rgba(112,12,235,0.08)" }}>
-                      <iframe src={estate.sytemap} title="Estate Map" className="w-full" style={{ height: 400 }} allowFullScreen />
+                      <iframe src={estate.sytemap} title="Estate Map" className="h-[260px] w-full sm:h-[400px]" allowFullScreen />
                     </div>
                   </div>
                 )}
@@ -436,7 +436,7 @@ export default function EstateDetails({ estate }: { estate: Estate }) {
                         className="rounded-2xl p-6"
                         style={{ background: "linear-gradient(135deg, #0f0a1e, #1a0f35)", border: "1px solid rgba(112,12,235,0.2)" }}
                       >
-                        <div className="grid grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
                           {(
                             [
                               ["Plot Size", plan.plot],

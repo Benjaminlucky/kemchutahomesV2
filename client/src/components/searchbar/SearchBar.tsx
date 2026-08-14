@@ -159,7 +159,7 @@ export default function SearchBar() {
             )}
           </div>
 
-          <div className="flex items-center gap-2" style={{ position: "relative", zIndex: 9999 }}>
+          <div className="flex flex-wrap items-center gap-2" style={{ position: "relative", zIndex: 9999 }}>
             <Dropdown options={locationOptions} value={location} onChange={(v) => navigate({ location: v })} icon={MapPin} />
             <Dropdown options={purposeOptions} value={purpose} onChange={(v) => navigate({ purpose: v })} icon={Briefcase} />
           </div>

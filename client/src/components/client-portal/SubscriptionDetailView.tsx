@@ -107,7 +107,7 @@ export default function SubscriptionDetailView({ sub }: { sub: SubscriptionDetai
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
           {[
             { l: "Total", v: fmtNGN(sub.totalAmount), c: "text-customBlack-900" },
             { l: "Paid", v: fmtNGN(sub.amountPaid || 0), c: "text-green-600" },
