@@ -41,7 +41,7 @@ const STARTERS = [
 ];
 
 const AUTO_GREETING =
-  "Hi there! 👋 I'm **Ada**, your Kemchuta Homes assistant. I can help you with land subscriptions, Buy2Sell investments, site inspections, estate prices, and more. What would you like to know?";
+  "Hi there! 👋 I'm **Ada AI**, your Kemchuta Homes assistant. I can help you with land subscriptions, Buy2Sell investments, site inspections, estate prices, and more. What would you like to know?";
 
 // Two-note chime (C5 then E5) via the Web Audio API — no audio asset needed.
 function playChime() {
@@ -440,7 +440,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
               <div className="mb-2 flex items-center gap-2.5">
                 <AdaAvatar />
                 <div>
-                  <p className="text-xs font-extrabold text-customBlack-900">Ada</p>
+                  <p className="text-xs font-extrabold text-customBlack-900">Ada AI</p>
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <PulseDot />
                     <p className="text-[10px] text-customBlack-400">Online now</p>
@@ -458,7 +458,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
         <motion.button
           ref={launcherRef}
           onClick={handleToggle}
-          aria-label={open ? "Close chat" : "Chat with Ada"}
+          aria-label={open ? "Close chat" : "Chat with Ada AI"}
           aria-expanded={open}
           animate={shaking && !reduceMotion ? { x: [0, -4, 4, -4, 4, 0] } : {}}
           transition={{ duration: 0.5 }}
@@ -473,7 +473,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label="Chat with Ada"
+            aria-label="Chat with Ada AI"
             initial={{ opacity: 0, y: 16, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.97 }}
@@ -484,7 +484,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
             <div className="flex items-center gap-3 bg-gradient-to-br from-customPurple-900 to-customPurple-500 px-4 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5 sm:pt-3.5">
               <AdaAvatar size="md" />
               <div className="flex-1">
-                <p className="text-sm font-extrabold text-white">Ada</p>
+                <p className="text-sm font-extrabold text-white">Ada AI</p>
                 <div className="mt-0.5 flex items-center gap-1.5">
                   <PulseDot />
                   <p className="text-[11px] text-white/70">Kemchuta Homes AI Assistant</p>
@@ -527,7 +527,7 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
                     <AdaAvatar />
                     <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-customPurple-50 px-3.5 py-3">
                       <p className="text-[13.5px] leading-relaxed text-customBlack-900">
-                        Hi! I&rsquo;m Ada, your Kemchuta Homes assistant. How can I help you today?
+                        Hi! I&rsquo;m Ada AI, your Kemchuta Homes assistant. How can I help you today?
                       </p>
                     </div>
                   </div>
@@ -599,8 +599,8 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
                 value={input}
                 onChange={(e) => setInput(e.target.value.slice(0, 4000))}
                 onKeyDown={handleKey}
-                placeholder="Ask Ada anything about our estates…"
-                aria-label="Message to Ada"
+                placeholder="Ask Ada AI anything about our estates…"
+                aria-label="Message to Ada AI"
                 rows={1}
                 maxLength={4000}
                 className="max-h-24 flex-1 resize-none rounded-xl border border-customBlack-100 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-customPurple-400"
