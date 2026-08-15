@@ -12,7 +12,12 @@ type CompanyInfo = {
   lagosPhone: string;
 };
 
-const STORAGE_KEY = "ada-chat-session";
+// Bumped from "ada-chat-session" — the rename to "Ada AI" changed the
+// greeting text, so any session persisted under the old key would keep
+// showing the stale "Ada" wording (and a stale greetedOnce flag that
+// silently skipped the auto-open) until the tab was closed. A new key
+// makes every existing tab start a fresh session on next load.
+const STORAGE_KEY = "ada-ai-chat-session-v2";
 
 // Reads a persisted conversation (sessionStorage — survives a refresh,
 // cleared when the tab closes). Fed into useState's lazy-initializer form
@@ -40,8 +45,7 @@ const STARTERS = [
   "How do I reach your team?",
 ];
 
-const AUTO_GREETING =
-  "Hi there! 👋 I'm **Ada AI**, your Kemchuta Homes assistant. I can help you with land subscriptions, Buy2Sell investments, site inspections, estate prices, and more. What would you like to know?";
+const AUTO_GREETING = "Hi! I'm **Ada AI**, your Kemchuta Homes Assistant. How can I help you today?";
 
 // Two-note chime (C5 then E5) via the Web Audio API — no audio asset needed.
 function playChime() {
@@ -412,7 +416,10 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
     setLoading(false);
     setWaitingForFirstToken(false);
     lastHistoryRef.current = [];
-  }, []);
+    // Re-greet so "new conversation" always lands back on the same
+    // intro + quick-questions starting point as a genuine first open.
+    greet();
+  }, [greet]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -421,7 +428,11 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
     }
   };
 
-  const isFirstOpen = open && messages.length === 0 && !autoTyping;
+  // Quick-question starters sit right under Ada AI's opening line — shown
+  // whenever the conversation is still just that greeting (no user reply
+  // yet), regardless of whether it arrived via auto-open, a manual first
+  // click, or "start a new conversation" (all three funnel through greet()).
+  const showStarters = messages.length === 1 && messages[0]?.role === "assistant" && !autoTyping;
 
   if (!mounted) return null;
 
@@ -521,33 +532,6 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
               aria-relevant="additions"
               className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-3.5 py-4"
             >
-              {isFirstOpen && (
-                <div>
-                  <div className="mb-3.5 flex items-start gap-2">
-                    <AdaAvatar />
-                    <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-customPurple-50 px-3.5 py-3">
-                      <p className="text-[13.5px] leading-relaxed text-customBlack-900">
-                        Hi! I&rsquo;m Ada AI, your Kemchuta Homes assistant. How can I help you today?
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pl-9">
-                    <p className="mb-2 text-[10px] font-bold tracking-widest text-customBlack-400 uppercase">Quick questions</p>
-                    <div className="flex flex-col gap-1.5">
-                      {STARTERS.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => send(s)}
-                          className="rounded-xl border border-customPurple-100 bg-customPurple-50/60 px-3 py-2 text-left text-[13px] font-semibold text-customPurple-700 transition-colors hover:border-customPurple-300 hover:bg-customPurple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-customPurple-400"
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {messages.map((m, i) => {
                 // The streaming placeholder starts empty — nothing to show
                 // yet, the typing indicator below covers this gap.
@@ -581,6 +565,23 @@ export default function ChatWidget({ companyInfo }: { companyInfo: CompanyInfo }
                   </div>
                 );
               })}
+
+              {showStarters && (
+                <div className="pl-9">
+                  <p className="mb-2 text-[10px] font-bold tracking-widest text-customBlack-400 uppercase">Quick questions</p>
+                  <div className="flex flex-col gap-1.5">
+                    {STARTERS.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => send(s)}
+                        className="rounded-xl border border-customPurple-100 bg-customPurple-50/60 px-3 py-2 text-left text-[13px] font-semibold text-customPurple-700 transition-colors hover:border-customPurple-300 hover:bg-customPurple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-customPurple-400"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {(autoTyping || waitingForFirstToken) && (
                 <div className="flex items-end gap-2">
