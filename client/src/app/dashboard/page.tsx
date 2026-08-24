@@ -16,19 +16,34 @@ export default async function DashboardPage() {
   const cookieHeader = cookieStore.toString();
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  const meRes = await fetch(`${apiBase}/api/auth/me`, {
-    headers: { Cookie: cookieHeader },
-    cache: "no-store",
-  });
-  if (!meRes.ok) redirect("/login");
-  const me: CurrentUser = await meRes.json();
-
-  if (me.role === "admin" || me.role === "superadmin") {
-    const res = await fetch(`${apiBase}/api/admin/analytics`, {
+  // A thrown fetch or non-JSON response used to be uncaught here, crashing
+  // the whole route to app/error.tsx instead of just sending the visitor
+  // back to /login (see the matching fix in dashboard/layout.tsx).
+  let me: CurrentUser | null = null;
+  try {
+    const meRes = await fetch(`${apiBase}/api/auth/me`, {
       headers: { Cookie: cookieHeader },
       cache: "no-store",
     });
-    const analytics: Analytics | null = res.ok ? await res.json() : null;
+    if (meRes.ok) {
+      me = await meRes.json();
+    }
+  } catch (err) {
+    console.error("DashboardPage: failed to verify session:", err);
+  }
+  if (!me) redirect("/login");
+
+  if (me.role === "admin" || me.role === "superadmin") {
+    let analytics: Analytics | null = null;
+    try {
+      const res = await fetch(`${apiBase}/api/admin/analytics`, {
+        headers: { Cookie: cookieHeader },
+        cache: "no-store",
+      });
+      if (res.ok) analytics = await res.json();
+    } catch (err) {
+      console.error("DashboardPage: failed to load admin analytics:", err);
+    }
 
     return (
       <div>
@@ -45,11 +60,16 @@ export default async function DashboardPage() {
     );
   }
 
-  const res = await fetch(`${apiBase}/api/realtors/dashboard`, {
-    headers: { Cookie: cookieHeader },
-    cache: "no-store",
-  });
-  const summary = res.ok ? await res.json() : null;
+  let summary = null;
+  try {
+    const res = await fetch(`${apiBase}/api/realtors/dashboard`, {
+      headers: { Cookie: cookieHeader },
+      cache: "no-store",
+    });
+    if (res.ok) summary = await res.json();
+  } catch (err) {
+    console.error("DashboardPage: failed to load realtor dashboard summary:", err);
+  }
 
   return (
     <div>

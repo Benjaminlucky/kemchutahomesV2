@@ -18,16 +18,26 @@ type CurrentUser = {
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`, {
-    headers: { Cookie: cookieStore.toString() },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    redirect("/login");
+  // A thrown fetch (network hiccup, DNS blip) or a non-JSON response body
+  // used to be uncaught here, crashing the whole route to app/error.tsx
+  // instead of just sending the visitor back to /login. Treat any failure
+  // the same as "not authenticated."
+  let user: CurrentUser | null = null;
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`, {
+      headers: { Cookie: cookieStore.toString() },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      user = await res.json();
+    }
+  } catch (err) {
+    console.error("DashboardLayout: failed to verify session:", err);
   }
 
-  const user: CurrentUser = await res.json();
+  if (!user) {
+    redirect("/login");
+  }
 
   return (
     <DashboardShell role={user.role} permissions={user.permissions}>
