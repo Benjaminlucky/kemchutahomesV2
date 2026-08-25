@@ -40,7 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       user = await res.json();
     } else {
       const body = await res.text().catch(() => "");
-      failReason = `status_${res.status}:${body.slice(0, 300)}`;
+      failReason = `status_${res.status}:${body.slice(0, 1000)}`;
       console.error("DashboardLayout: /api/auth/me not ok:", res.status, body);
     }
   } catch (err) {
