@@ -36,7 +36,7 @@ export default async function DashboardPage() {
       me = await meRes.json();
     } else {
       const body = await meRes.text().catch(() => "");
-      failReason = `page_status_${meRes.status}:${body.slice(0, 120)}`;
+      failReason = `page_status_${meRes.status}:${body.slice(0, 300)}`;
       console.error("DashboardPage: /api/auth/me not ok:", meRes.status, body);
     }
   } catch (err) {

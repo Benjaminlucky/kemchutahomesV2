@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import Realtor from "../models/realtor.model.js";
 import Admin from "../models/admin.js";
 import Client from "../models/client.model.js";
@@ -63,7 +64,21 @@ export const protect = async (req, res, next) => {
       "_id email role firstName lastName referralCode",
     );
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      // TEMPORARY DIAGNOSTIC (remove once the realtor-login-loop bug is
+      // found): a decoded JWT id that was verified to match the id the
+      // login response just returned seconds earlier is still resolving
+      // to "not found" here. Distinguish "the document genuinely isn't
+      // there" from "a read-consistency/timing blip" without needing DB
+      // access — countDocuments is a separate, immediate read.
+      const debugCount = await Realtor.countDocuments({ _id: decoded.id }).catch(
+        (e) => `count_err:${e.message}`,
+      );
+      return res.status(401).json({
+        message: "User not found",
+        debugDecodedId: decoded.id,
+        debugCountById: debugCount,
+        debugMongoReadyState: mongoose.connection.readyState,
+      });
     }
 
     req.user = {
