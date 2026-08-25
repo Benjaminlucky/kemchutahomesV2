@@ -19,14 +19,7 @@ export default async function DashboardPage() {
   // A thrown fetch or non-JSON response used to be uncaught here, crashing
   // the whole route to app/error.tsx instead of just sending the visitor
   // back to /login (see the matching fix in dashboard/layout.tsx).
-  //
-  // TEMPORARY DIAGNOSTIC (remove once the realtor-login-loop bug is found):
-  // dashboard/layout.tsx's own /api/auth/me check already passed by the
-  // time this runs (otherwise it would have redirected first) — so if
-  // *this* redundant check still fails, it's failing independently of
-  // layout.tsx's. Surface why on the /login redirect itself.
   let me: CurrentUser | null = null;
-  let failReason = "";
   try {
     const meRes = await fetch(`${apiBase}/api/auth/me`, {
       headers: { Cookie: cookieHeader },
@@ -34,16 +27,11 @@ export default async function DashboardPage() {
     });
     if (meRes.ok) {
       me = await meRes.json();
-    } else {
-      const body = await meRes.text().catch(() => "");
-      failReason = `page_status_${meRes.status}:${body.slice(0, 1000)}`;
-      console.error("DashboardPage: /api/auth/me not ok:", meRes.status, body);
     }
   } catch (err) {
-    failReason = `page_throw:${err instanceof Error ? err.message : String(err)}`;
     console.error("DashboardPage: failed to verify session:", err);
   }
-  if (!me) redirect(`/login?authFailed=${encodeURIComponent(failReason)}`);
+  if (!me) redirect("/login");
 
   if (me.role === "admin" || me.role === "superadmin") {
     let analytics: Analytics | null = null;

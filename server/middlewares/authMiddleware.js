@@ -1,5 +1,4 @@
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
 import Realtor from "../models/realtor.model.js";
 import Admin from "../models/admin.js";
 import Client from "../models/client.model.js";
@@ -64,47 +63,7 @@ export const protect = async (req, res, next) => {
       "_id email role firstName lastName referralCode",
     );
     if (!user) {
-      // A raw-string fallback (previous commit) assumed _id might be
-      // stored as a plain string — disproven: Compass shows a genuine
-      // ObjectId for this account. Keep the string-match attempt (cheap,
-      // harmless, catches other malformed accounts) but this time capture
-      // hard evidence instead of guessing again: an explicit-ObjectId raw
-      // query (rules out any findById-specific casting quirk), plus
-      // connection identity, so we know for certain whether this process
-      // is even talking to the database the Compass screenshot was taken
-      // from.
-      const rawByString = await Realtor.collection
-        .findOne(
-          { _id: decoded.id },
-          { projection: { email: 1, role: 1, firstName: 1, lastName: 1, referralCode: 1 } },
-        )
-        .catch((e) => `err:${e.message}`);
-
-      let rawByObjectId = null;
-      try {
-        rawByObjectId = await Realtor.collection.findOne(
-          { _id: new mongoose.Types.ObjectId(decoded.id) },
-          { projection: { email: 1, role: 1, firstName: 1, lastName: 1, referralCode: 1 } },
-        );
-      } catch (e) {
-        rawByObjectId = `err:${e.message}`;
-      }
-
-      if (rawByString && typeof rawByString === "object") user = rawByString;
-      else if (rawByObjectId && typeof rawByObjectId === "object") user = rawByObjectId;
-
-      if (!user) {
-        const totalRealtors = await Realtor.estimatedDocumentCount().catch((e) => `err:${e.message}`);
-        return res.status(401).json({
-          message: "User not found",
-          debugDecodedId: decoded.id,
-          debugIdIsValidObjectId: mongoose.Types.ObjectId.isValid(decoded.id),
-          debugRawByString: rawByString,
-          debugRawByObjectId: rawByObjectId,
-          debugTotalRealtors: totalRealtors,
-          debugReadyState: mongoose.connection.readyState,
-        });
-      }
+      return res.status(401).json({ message: "User not found" });
     }
 
     req.user = {
