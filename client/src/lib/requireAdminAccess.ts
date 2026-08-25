@@ -8,13 +8,22 @@ import { redirect } from "next/navigation";
 export async function requireAdminAccess(permissionKey?: string) {
   const cookieHeader = (await cookies()).toString();
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`, {
-    headers: { Cookie: cookieHeader },
-    cache: "no-store",
-  });
-  if (!res.ok) redirect("/login");
-
-  const user = await res.json();
+  // A thrown fetch (network hiccup) or non-JSON response used to be
+  // uncaught here, crashing every page that calls this guard (12 of the
+  // admin dashboard's pages) straight to app/error.tsx instead of just
+  // sending the visitor back to /login — the same failure mode fixed in
+  // dashboard/layout.tsx.
+  let user: { id: string; role: string; permissions?: string[] } | null = null;
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`, {
+      headers: { Cookie: cookieHeader },
+      cache: "no-store",
+    });
+    if (res.ok) user = await res.json();
+  } catch {
+    user = null;
+  }
+  if (!user) redirect("/login");
 
   if (user.role === "superadmin") return user;
   if (permissionKey && user.role === "admin" && user.permissions?.includes(permissionKey)) {

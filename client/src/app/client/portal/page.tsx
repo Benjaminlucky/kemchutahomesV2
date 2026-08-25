@@ -33,21 +33,30 @@ export default async function ClientPortalPage() {
   const cookieHeader = cookieStore.toString();
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  const [profileRes, dashboardRes] = await Promise.all([
-    fetch(`${apiBase}/api/clients/me`, { headers: { Cookie: cookieHeader }, cache: "no-store" }),
-    fetch(`${apiBase}/api/clients/dashboard`, { headers: { Cookie: cookieHeader }, cache: "no-store" }),
-  ]);
+  // A thrown fetch (network hiccup) or non-JSON response used to be
+  // uncaught here, crashing the page to app/error.tsx instead of just
+  // sending the visitor back to /client/login — same failure mode fixed in
+  // dashboard/layout.tsx for the realtor/admin side.
+  let client: ClientProfile | null = null;
+  let dashboard: ClientDashboard | null = null;
+  try {
+    const [profileRes, dashboardRes] = await Promise.all([
+      fetch(`${apiBase}/api/clients/me`, { headers: { Cookie: cookieHeader }, cache: "no-store" }),
+      fetch(`${apiBase}/api/clients/dashboard`, { headers: { Cookie: cookieHeader }, cache: "no-store" }),
+    ]);
+    if (profileRes.ok) client = await profileRes.json();
+    if (dashboardRes.ok) dashboard = await dashboardRes.json();
+  } catch {
+    client = null;
+  }
 
-  if (!profileRes.ok) {
+  if (!client) {
     // proxy.ts only checked that a cookie was present, not that it's still
     // valid (expired access token, revoked session, etc.) — this is the
     // real verification, and an invalid session sends the user back to
     // login rather than rendering an error.
     redirect("/client/login");
   }
-
-  const client: ClientProfile = await profileRes.json();
-  const dashboard: ClientDashboard | null = dashboardRes.ok ? await dashboardRes.json() : null;
 
   return (
     <div className="mx-auto w-11/12 max-w-5xl py-10 lg:w-10/12 lg:py-16">

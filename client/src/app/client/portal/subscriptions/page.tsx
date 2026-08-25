@@ -15,16 +15,23 @@ export default async function ClientSubscriptionsPage() {
   const cookieHeader = cookieStore.toString();
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  const res = await fetch(`${apiBase}/api/subscriptions/my`, {
-    headers: { Cookie: cookieHeader },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    redirect("/client/login");
+  // A thrown fetch (network hiccup) or non-JSON response used to be
+  // uncaught here, crashing the page to app/error.tsx instead of just
+  // sending the visitor back to /client/login.
+  let subscriptions: PortalSubscription[] | null = null;
+  try {
+    const res = await fetch(`${apiBase}/api/subscriptions/my`, {
+      headers: { Cookie: cookieHeader },
+      cache: "no-store",
+    });
+    if (res.ok) subscriptions = await res.json();
+  } catch {
+    subscriptions = null;
   }
 
-  const subscriptions: PortalSubscription[] = await res.json();
+  if (!subscriptions) {
+    redirect("/client/login");
+  }
 
   return (
     <div className="mx-auto w-11/12 max-w-4xl py-16 lg:w-10/12">

@@ -20,10 +20,18 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
   const cookieHeader = cookieStore.toString();
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  const res = await fetch(`${apiBase}/api/subscriptions/my/${id}`, {
-    headers: { Cookie: cookieHeader },
-    cache: "no-store",
-  });
+  // A thrown fetch (network hiccup) used to be uncaught here, crashing the
+  // page to app/error.tsx instead of just sending the visitor back to
+  // /client/login — treat it the same as a failed/expired session below.
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}/api/subscriptions/my/${id}`, {
+      headers: { Cookie: cookieHeader },
+      cache: "no-store",
+    });
+  } catch {
+    redirect("/client/login");
+  }
 
   if (res.status === 401) {
     redirect("/client/login");
@@ -38,7 +46,17 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
     redirect("/client/login");
   }
 
-  const sub: SubscriptionDetail = await res.json();
+  // A non-JSON body on an ok response is equally unexpected — fail the
+  // same way rather than crashing the page.
+  let sub: SubscriptionDetail | null = null;
+  try {
+    sub = await res.json();
+  } catch {
+    sub = null;
+  }
+  if (!sub) {
+    redirect("/client/login");
+  }
 
   return (
     <div className="mx-auto w-11/12 max-w-3xl py-16 lg:w-10/12">

@@ -25,16 +25,23 @@ export default async function ClientInspectionsPage({
   const qs = new URLSearchParams({ page, limit: String(PAGE_SIZE) });
   if (status) qs.set("status", status);
 
-  const res = await fetch(`${apiBase}/api/clients/inspections?${qs}`, {
-    headers: { Cookie: cookieHeader },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    redirect("/client/login");
+  // A thrown fetch (network hiccup) or non-JSON response used to be
+  // uncaught here, crashing the page to app/error.tsx instead of just
+  // sending the visitor back to /client/login.
+  let data: PortalInspectionListResponse | null = null;
+  try {
+    const res = await fetch(`${apiBase}/api/clients/inspections?${qs}`, {
+      headers: { Cookie: cookieHeader },
+      cache: "no-store",
+    });
+    if (res.ok) data = await res.json();
+  } catch {
+    data = null;
   }
 
-  const data: PortalInspectionListResponse = await res.json();
+  if (!data) {
+    redirect("/client/login");
+  }
 
   return (
     <div className="mx-auto w-11/12 max-w-4xl py-16 lg:w-10/12">
