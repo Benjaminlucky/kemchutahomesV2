@@ -1,5 +1,4 @@
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
 import Realtor from "../models/realtor.model.js";
 import Admin from "../models/admin.js";
 import Client from "../models/client.model.js";
@@ -64,21 +63,25 @@ export const protect = async (req, res, next) => {
       "_id email role firstName lastName referralCode",
     );
     if (!user) {
-      // TEMPORARY DIAGNOSTIC (remove once the realtor-login-loop bug is
-      // found): a decoded JWT id that was verified to match the id the
-      // login response just returned seconds earlier is still resolving
-      // to "not found" here. Distinguish "the document genuinely isn't
-      // there" from "a read-consistency/timing blip" without needing DB
-      // access — countDocuments is a separate, immediate read.
-      const debugCount = await Realtor.countDocuments({ _id: decoded.id }).catch(
-        (e) => `count_err:${e.message}`,
+      // Mongoose's findById casts the id to a BSON ObjectId before
+      // querying. Confirmed via a live repro: a realtor's JWT can carry
+      // the exact id their own login response just returned (same hex
+      // string, unexpired), yet findById still finds nothing — meaning
+      // that account's _id is stored as a plain string rather than an
+      // ObjectId (e.g. from how it was originally created/seeded, not
+      // through the normal signup flow's Mongoose-generated id). MongoDB
+      // equality is type-strict, so an ObjectId-cast query never matches
+      // a string-typed _id, even with identical characters. Fall back to
+      // the raw collection, which queries decoded.id exactly as given
+      // with no casting, so accounts in either representation resolve.
+      const raw = await Realtor.collection.findOne(
+        { _id: decoded.id },
+        { projection: { email: 1, role: 1, firstName: 1, lastName: 1, referralCode: 1 } },
       );
-      return res.status(401).json({
-        message: "User not found",
-        debugDecodedId: decoded.id,
-        debugCountById: debugCount,
-        debugMongoReadyState: mongoose.connection.readyState,
-      });
+      if (raw) user = raw;
+    }
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
     }
 
     req.user = {

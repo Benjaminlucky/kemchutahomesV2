@@ -48,9 +48,20 @@ async function getHierarchy(startRealtorId) {
     if (visited.has(key)) break;
     visited.add(key);
 
-    const realtor = await Realtor.findById(currentId)
+    let realtor = await Realtor.findById(currentId)
       .select("firstName lastName email recruitedBy")
       .lean();
+    if (!realtor) {
+      // See utils/realtorLookup.js — findById casts to ObjectId and never
+      // matches a realtor whose _id is stored as a plain string. A chain
+      // that silently truncates here means that realtor (and everyone
+      // above them) gets skipped for commission on this sale, so it's
+      // worth the same fallback rather than just breaking.
+      realtor = await Realtor.collection.findOne(
+        { _id: currentId },
+        { projection: { firstName: 1, lastName: 1, email: 1, recruitedBy: 1 } },
+      );
+    }
     if (!realtor) break;
     chain.push({ level, realtor });
     currentId = realtor.recruitedBy || null;

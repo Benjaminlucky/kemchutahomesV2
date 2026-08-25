@@ -11,6 +11,7 @@ import {
 } from "../utils/notifications.js";
 import { issueAuthCookies } from "../utils/authTokens.js";
 import { getLockoutStatus, recordFailedLogin, recordSuccessfulLogin } from "../utils/loginLockout.js";
+import { findRealtorByIdFlexible } from "../utils/realtorLookup.js";
 
 /* ────────────────────────────────────────────────────────────────────────────
    HELPERS
@@ -201,9 +202,8 @@ export const login = async (req, res) => {
 export const getDashboard = async (req, res) => {
   try {
     const userId = req.user.id;
-    const realtor = await Realtor.findById(userId)
-      .populate("recruitedBy", "firstName lastName role")
-      .exec();
+    const realtor = await findRealtorByIdFlexible(userId);
+    if (realtor) await realtor.populate("recruitedBy", "firstName lastName role");
 
     if (!realtor) return res.status(404).json({ message: "User not found" });
 
@@ -274,11 +274,10 @@ export const updateAvatar = async (req, res) => {
       });
 
     const result = await uploadFromBuffer(req.file.buffer);
-    const updated = await Realtor.findByIdAndUpdate(
-      req.user.id,
-      { avatar: result.secure_url },
-      { new: true },
-    ).select("firstName lastName avatar referralCode email role");
+    const updated = await findRealtorByIdFlexible(req.user.id);
+    if (!updated) return res.status(404).json({ message: "User not found" });
+    updated.avatar = result.secure_url;
+    await updated.save();
 
     return res.json({
       message: "Avatar updated",
