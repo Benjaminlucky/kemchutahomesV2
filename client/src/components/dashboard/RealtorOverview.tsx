@@ -1,3 +1,5 @@
+"use client";
+
 import { Users, Link2 } from "lucide-react";
 import StatCard from "@/components/client-portal/StatCard";
 
