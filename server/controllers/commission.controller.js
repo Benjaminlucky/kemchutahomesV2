@@ -26,6 +26,10 @@ import { isValidObjectId, Types } from "mongoose";
 import { Commission, CommissionTier } from "../models/Commission.model.js";
 import { getTiers, clawbackCommissionById } from "../utils/commissionCalculator.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import {
+  notifyRealtorCommissionPaid,
+  notifyRealtorCommissionClawedback,
+} from "../utils/notifications.js";
 
 // ── :id guard ────────────────────────────────────────────────────────────────
 const rejectedInvalidId = (req, res) => {
@@ -204,6 +208,16 @@ export const markCommissionPaid = async (req, res) => {
         message: "Only approved commissions can be marked paid.",
       });
     }
+
+    // Fire-and-forget — never let a slow/failed email hold up the response.
+    notifyRealtorCommissionPaid({
+      realtorEmail: commission.realtorEmail,
+      realtorName: commission.realtorName,
+      netAmount: commission.netAmount,
+      saleLabel: commission.saleLabel || commission.estateName,
+      paymentRef: commission.paymentRef,
+    }).catch(() => null);
+
     res.json({ message: "Commission marked as paid", commission });
   } catch (err) {
     res.status(500).json({ message: "Failed to update commission" });
@@ -227,6 +241,15 @@ export const clawbackCommission = async (req, res) => {
         message: "Only pending or approved commissions can be clawed back.",
       });
     }
+
+    notifyRealtorCommissionClawedback({
+      realtorEmail: commission.realtorEmail,
+      realtorName: commission.realtorName,
+      netAmount: commission.netAmount,
+      saleLabel: commission.saleLabel || commission.estateName,
+      reason: commission.clawbackReason,
+    }).catch(() => null);
+
     res.json({ message: "Commission clawed back", commission });
   } catch (err) {
     res.status(500).json({ message: "Failed to claw back commission" });
@@ -240,6 +263,17 @@ export const payCommissionBatch = async (req, res) => {
     if (!ids?.length)
       return res.status(400).json({ message: "No commission IDs provided" });
 
+    // Snapshot which of the requested ids are actually payable *before* the
+    // update — updateMany doesn't return the matched documents, and this is
+    // what tells each realtor about their own payout afterward. The small
+    // race window (a concurrent request changing one of these between this
+    // read and the update below) is the same one the existing skip-count
+    // reporting below already tolerates.
+    const toPay = await Commission.find(
+      { _id: { $in: ids }, status: "approved" },
+      "realtorEmail realtorName netAmount saleLabel estateName",
+    ).lean();
+
     const result = await Commission.updateMany(
       { _id: { $in: ids }, status: "approved" },
       {
@@ -249,6 +283,18 @@ export const payCommissionBatch = async (req, res) => {
         paymentRef: paymentRef || "",
       },
     );
+
+    Promise.allSettled(
+      toPay.map((c) =>
+        notifyRealtorCommissionPaid({
+          realtorEmail: c.realtorEmail,
+          realtorName: c.realtorName,
+          netAmount: c.netAmount,
+          saleLabel: c.saleLabel || c.estateName,
+          paymentRef,
+        }),
+      ),
+    ).catch(() => null);
 
     // Some ids can legitimately fail to match (already paid/clawed back by
     // another admin, or by a concurrent request, between selection and

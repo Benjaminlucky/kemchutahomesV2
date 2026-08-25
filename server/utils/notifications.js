@@ -483,3 +483,71 @@ export async function notifyUplineOfNewRecruit({
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ── 9. COMMISSION PAID ───────────────────────────────────────────────────────
+// Fired when admin marks a commission paid (single or batch — see
+// commission.controller.js's markCommissionPaid/payCommissionBatch).
+// Sends: realtor email only — commissions are calculated automatically and
+// realtors already track them on their own Earnings page; a payout is the
+// one state change worth interrupting them for.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function notifyRealtorCommissionPaid({
+  realtorEmail,
+  realtorName,
+  netAmount,
+  saleLabel,
+  paymentRef,
+}) {
+  const html = baseHtml(
+    "COMMISSION PAID",
+    `<h2>Commission Paid Out! 💰</h2>
+     <p>Hi ${realtorName}, your commission has been paid.</p>`,
+    `${dataRows([
+      ["Amount", fmtNGN(netAmount)],
+      ["For", saleLabel || "—"],
+      ["Payment Reference", paymentRef || "—"],
+    ])}
+    <div class="btn-wrapper"><a href="${FRONTEND()}/dashboard/earnings" class="btn">View My Earnings</a></div>`,
+  );
+
+  await sendEmail({
+    to: realtorEmail,
+    subject: `Commission Paid — ${fmtNGN(netAmount)} 💰`,
+    html,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── 10. COMMISSION CLAWED BACK ───────────────────────────────────────────────
+// Fired when admin manually reverses a commission (commission.controller.js's
+// clawbackCommission) — the automatic subscription-rejection clawback path
+// is a separate, existing flow and already notifies elsewhere.
+// Sends: realtor email only.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function notifyRealtorCommissionClawedback({
+  realtorEmail,
+  realtorName,
+  netAmount,
+  saleLabel,
+  reason,
+}) {
+  const html = baseHtml(
+    "COMMISSION REVERSED",
+    `<h2>Commission Reversed</h2>
+     <p>Hi ${realtorName}, a commission on your account has been reversed.</p>`,
+    `${dataRows([
+      ["Amount", fmtNGN(netAmount)],
+      ["For", saleLabel || "—"],
+      ["Reason", reason || "—"],
+    ])}
+    <p style="font-size:14px;color:#6b7280;">If you have questions about this reversal, please contact support.</p>
+    <div class="btn-wrapper"><a href="${FRONTEND()}/dashboard/earnings" class="btn">View My Earnings</a></div>`,
+  );
+
+  await sendEmail({
+    to: realtorEmail,
+    subject: `Commission Reversed — ${fmtNGN(netAmount)}`,
+    html,
+  });
+}
+

@@ -3,6 +3,7 @@ import { buildMetadata } from "@/lib/seo";
 import { getEstates } from "@/lib/api";
 import SearchBar from "@/components/searchbar/SearchBar";
 import Development from "@/components/developments/Development";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 export const metadata = buildMetadata({
   title: "Developments",
@@ -18,13 +19,23 @@ export default async function DevelopmentsPage({
 }) {
   const params = await searchParams;
 
-  const { estates } = await getEstates({
-    limit: 50,
-    active: "true",
-    ...(params.search?.trim() && { search: params.search.trim() }),
-    ...(params.location && params.location !== "Choose Location" && { location: params.location }),
-    ...(params.purpose && params.purpose !== "Any Purpose" && { purpose: params.purpose }),
-  });
+  // getEstates() throws on a non-2xx response — a transient API hiccup
+  // used to crash this entire listings page for every visitor instead of
+  // just showing an inline notice.
+  let estates: Awaited<ReturnType<typeof getEstates>>["estates"] = [];
+  let loadError = false;
+  try {
+    ({ estates } = await getEstates({
+      limit: 50,
+      active: "true",
+      ...(params.search?.trim() && { search: params.search.trim() }),
+      ...(params.location && params.location !== "Choose Location" && { location: params.location }),
+      ...(params.purpose && params.purpose !== "Any Purpose" && { purpose: params.purpose }),
+    }));
+  } catch (err) {
+    console.error("DevelopmentsPage: failed to load estates:", err);
+    loadError = true;
+  }
 
   return (
     <main className="w-full">
@@ -52,7 +63,13 @@ export default async function DevelopmentsPage({
           </div>
 
           <section>
-            <Development estates={estates} />
+            {loadError ? (
+              <ErrorBanner className="mx-auto max-w-md text-center">
+                Couldn&rsquo;t load listings right now — please refresh.
+              </ErrorBanner>
+            ) : (
+              <Development estates={estates} />
+            )}
           </section>
         </div>
       </div>

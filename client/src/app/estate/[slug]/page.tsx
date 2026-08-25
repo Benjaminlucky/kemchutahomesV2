@@ -24,7 +24,22 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const estate = await getEstateBySlug(slug);
+
+  // getEstateBySlug() throws on a non-2xx response (distinct from its own
+  // `null` return for a genuine 404, handled below). A transient API
+  // hiccup here used to crash metadata resolution — and therefore the
+  // whole page — before the page component even got a chance to run.
+  let estate: Awaited<ReturnType<typeof getEstateBySlug>> = null;
+  try {
+    estate = await getEstateBySlug(slug);
+  } catch (err) {
+    console.error(`generateMetadata: failed to load estate "${slug}":`, err);
+    return buildMetadata({
+      title: "Kemchuta Homes Estate",
+      description: "Explore Kemchuta Homes Limited's estate developments.",
+      path: `/estate/${slug}`,
+    });
+  }
 
   if (!estate) {
     return buildMetadata({
