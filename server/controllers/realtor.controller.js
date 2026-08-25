@@ -8,6 +8,7 @@ import {
   sendEmail,
   sendSMS,
   notifyRealtorWelcomeSMS,
+  notifyUplineOfNewRecruit,
 } from "../utils/notifications.js";
 import { issueAuthCookies } from "../utils/authTokens.js";
 import { getLockoutStatus, recordFailedLogin, recordSuccessfulLogin } from "../utils/loginLockout.js";
@@ -112,7 +113,8 @@ export const signup = async (req, res) => {
         </div>
       </div></body></html>`;
 
-    // Fire email + SMS — non-blocking
+    // Fire email + SMS — non-blocking. If this signup came through a
+    // referral link, also let the upline know who just joined under them.
     Promise.allSettled([
       sendEmail({
         to: realtor.email,
@@ -125,6 +127,14 @@ export const signup = async (req, res) => {
         referralCode,
         referralLink,
       }),
+      recruiter
+        ? notifyUplineOfNewRecruit({
+            uplineEmail: recruiter.email,
+            uplineFirstName: recruiter.firstName,
+            recruitFirstName: firstName,
+            recruitLastName: lastName,
+          })
+        : null,
     ]).catch(() => null);
 
     return res.status(201).json({

@@ -177,7 +177,7 @@ export async function sendEmail({ to, subject, html, attachments }) {
   try {
     const toArr = Array.isArray(to) ? to : [to];
     const payload = {
-      from: "Kemchuta Homes <onboarding@khlrealtorsportal.com>",
+      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
       to: toArr,
       subject,
       html,
@@ -453,5 +453,33 @@ export async function notifyRealtorWelcomeSMS({
     phone,
     `Welcome to Kemchuta Homes, ${firstName}! Your referral code is ${referralCode}. Start earning commissions: ${referralLink || FRONTEND()} - KHL`,
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── 8. UPLINE RECRUIT NOTIFICATION ───────────────────────────────────────────
+// Fired when a new realtor signs up using an existing realtor's referral
+// code (realtor.controller.js's signup, recruiter lookup by ref code).
+// Sends: upline email only — the new recruit already gets their own welcome
+// email/SMS from the same signup call.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function notifyUplineOfNewRecruit({
+  uplineEmail,
+  uplineFirstName,
+  recruitFirstName,
+  recruitLastName,
+}) {
+  const html = baseHtml(
+    "NEW RECRUIT",
+    `<h2>You Have a New Recruit! 🎉</h2>
+     <p>Hi ${uplineFirstName}, great news — <strong>${recruitFirstName} ${recruitLastName}</strong> just joined Kemchuta Homes using your referral link.</p>`,
+    `<p style="font-size:15px;color:#525252;">They're now part of your downline network. As they close sales, your commission tiers benefit from their activity too.</p>
+    <div class="btn-wrapper"><a href="${FRONTEND()}/dashboard/recruits" class="btn">View My Recruits</a></div>`,
+  );
+
+  await sendEmail({
+    to: uplineEmail,
+    subject: `${recruitFirstName} ${recruitLastName} Just Joined Using Your Referral Link 🎉`,
+    html,
+  });
 }
 

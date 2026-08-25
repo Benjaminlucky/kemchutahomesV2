@@ -6,6 +6,7 @@ import Subscription, { APPROVED_STATUSES } from "../models/Subscription.model.js
 import Inspection from "../models/inspection.model.js";
 import { Buy2SellLead } from "../models/Buy2sell.model.js";
 import { sendEmail } from "../utils/notifications.js";
+import { sendClientWelcomeEmail } from "../utils/email.js";
 import { issueAuthCookies } from "../utils/authTokens.js";
 import { getLockoutStatus, recordFailedLogin, recordSuccessfulLogin } from "../utils/loginLockout.js";
 
@@ -48,6 +49,10 @@ export const registerClient = async (req, res) => {
 
     const token = signToken(client._id);
     await issueAuthCookies(res, { id: client._id, role: "client" });
+
+    // Fire-and-forget — never let a slow/failed email hold up registration.
+    sendClientWelcomeEmail({ email: client.email, firstName: client.firstName }).catch(() => null);
+
     res.status(201).json({
       token,
       user: {
