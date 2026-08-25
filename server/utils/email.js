@@ -33,7 +33,7 @@ export const sendWelcomeEmail = async ({ email, firstName }) => {
     }
 
     const { data, error } = await resend.emails.send({
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: email,
       subject: "Welcome to Kemchuta Homes - Let's Build Your Legacy 🏡",
       html: `
@@ -132,7 +132,7 @@ export const sendPasswordResetEmail = async ({
     }
 
     const { data, error } = await resend.emails.send({
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: email,
       subject: "Reset Your Kemchuta Homes Password 🔐",
       html: `
@@ -232,7 +232,7 @@ export const sendAdminPasswordResetEmail = async ({ email, resetUrl }) => {
     }
 
     const { data, error } = await resend.emails.send({
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: email,
       subject: "Admin Password Reset - Kemchuta Homes 🔐",
       html: `
@@ -334,7 +334,7 @@ export const sendAdminInviteEmail = async ({
     }
 
     const { data, error } = await resend.emails.send({
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: email,
       subject: "You've Been Invited to Kemchuta Homes Admin Portal 🎉",
       html: `
@@ -447,7 +447,7 @@ export const sendInspectionNotification = async (inspection) => {
     }
 
     const { data, error } = await resend.emails.send({
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: [process.env.ADMIN_EMAIL || process.env.EMAIL_USER],
       subject: `New Inspection: ${estateName} — ${dateStr}`,
       html: `
@@ -521,7 +521,7 @@ export const sendClientWelcomeEmail = async ({ email, firstName }) => {
     }
 
     const { data, error } = await resend.emails.send({
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: email,
       subject: "Your Kemchuta Homes Client Portal is Ready 🏡",
       html: `
@@ -615,7 +615,7 @@ export const sendClientPasswordResetEmail = async ({
     }
 
     const { data, error } = await resend.emails.send({
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: email,
       subject: "Reset Your Kemchuta Homes Portal Password 🔐",
       html: `

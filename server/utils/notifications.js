@@ -177,7 +177,7 @@ export async function sendEmail({ to, subject, html, attachments }) {
   try {
     const toArr = Array.isArray(to) ? to : [to];
     const payload = {
-      from: "Kemchuta Homes <onboarding@mail.kemchutahomesltd.com>",
+      from: "Kemchuta Homes <notifications@kemchutahomesltd.com>",
       to: toArr,
       subject,
       html,
