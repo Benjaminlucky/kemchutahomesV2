@@ -23,6 +23,23 @@ export const onRequestError: Instrumentation.onRequestError = async (
   request,
   context,
 ) => {
+  // TEMPORARY DIAGNOSTIC (remove once the realtor-dashboard-render bug is
+  // found): Next.js redacts err.message for anything that crosses the
+  // RSC boundary to a client error boundary (app/error.tsx included), and
+  // this project has no paid Sentry access to see the real message either
+  // way. onRequestError is the one place that still gets the raw,
+  // unredacted error server-side — stash it so /api/debug/last-error can
+  // hand it back on request instead of requiring Netlify log access.
+  const g = globalThis as unknown as { __lastRenderError?: unknown };
+  g.__lastRenderError = {
+    message: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack?.slice(0, 2000) : undefined,
+    digest: (err as { digest?: string })?.digest,
+    path: request?.path,
+    routeType: context?.routerKind,
+    time: new Date().toISOString(),
+  };
+
   if (!process.env.SENTRY_DSN) return;
   const Sentry = await import("@sentry/node");
   Sentry.captureException(err, { extra: { request, context } });
