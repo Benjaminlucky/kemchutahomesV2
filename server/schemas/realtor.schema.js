@@ -53,3 +53,35 @@ export const updateRealtorSchema = z.object({
   accountName: z.string().trim().optional(),
   accountNumber: z.string().trim().optional(),
 });
+
+// PUT /api/realtors/me — self-service profile edit (mobile app). Never
+// includes email here: email is the login identifier and isn't editable
+// through this endpoint (matches the mobile UI, which shows it read-only).
+export const updateMyProfileSchema = z.object({
+  firstName: z.string().trim().min(1, "First name is required").optional(),
+  lastName: z.string().trim().min(1, "Last name is required").optional(),
+  phone: z.string().trim().min(7, "Valid phone number is required").optional(),
+  state: z.string().trim().optional(),
+});
+
+// PUT /api/realtors/me/bank
+export const updateMyBankSchema = z.object({
+  bank: z.string().trim().min(1, "Bank is required"),
+  accountName: z.string().trim().min(1, "Account name is required"),
+  accountNumber: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, "Must be a 10-digit account number"),
+});
+
+// PUT /api/realtors/me/password
+export const changeMyPasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: password,
+});
+
+// GET/PUT /api/realtors/me/preferences
+export const updateMyPreferencesSchema = z.object({
+  pushEnabled: z.boolean(),
+  emailEnabled: z.boolean(),
+});

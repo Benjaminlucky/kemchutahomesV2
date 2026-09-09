@@ -3,6 +3,8 @@ import {
   registerClient,
   loginClient,
   getClientProfile,
+  updateMyProfile,
+  changeMyPassword,
   getClientDashboard,
   forgotPassword,
   resetPassword,
@@ -18,6 +20,8 @@ import {
   clientForgotPasswordSchema,
   clientResetPasswordSchema,
   checkEmailQuerySchema,
+  updateMyClientProfileSchema,
+  changeMyClientPasswordSchema,
 } from "../schemas/client.schema.js";
 
 const router = express.Router();
@@ -51,6 +55,18 @@ router.get(
 
 // ── Protected (client token) ───────────────────────────────────────────────
 router.get("/me", protectClient, getClientProfile);
+router.put(
+  "/me",
+  protectClient,
+  validate(updateMyClientProfileSchema),
+  updateMyProfile,
+);
+router.put(
+  "/me/password",
+  protectClient,
+  validate(changeMyClientPasswordSchema),
+  changeMyPassword,
+);
 router.get("/dashboard", protectClient, getClientDashboard);
 router.get("/inspections", protectClient, getClientInspections);
 

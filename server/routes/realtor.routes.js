@@ -10,6 +10,12 @@ import {
   deleteRealtor,
   getDashboard,
   getMyRecruits,
+  getLeaderboard,
+  updateMyProfile,
+  updateMyBank,
+  changeMyPassword,
+  getMyPreferences,
+  updateMyPreferences,
   forgotPassword,
   resetPassword, // ✅ Import the new controller
 } from "../controllers/realtor.controller.js";
@@ -25,6 +31,10 @@ import {
   realtorResetPasswordSchema,
   updateRealtorSchema,
   realtorExportQuerySchema,
+  updateMyProfileSchema,
+  updateMyBankSchema,
+  changeMyPasswordSchema,
+  updateMyPreferencesSchema,
 } from "../schemas/realtor.schema.js";
 
 const router = express.Router();
@@ -36,7 +46,26 @@ router.post("/login", authLimiter, validate(realtorLoginSchema), login);
 // ✅ IMPORTANT: Specific routes BEFORE parameterized routes
 router.get("/dashboard", protect, getDashboard);
 router.get("/my-recruits", protect, getMyRecruits); // ✅ New route for getting recruits
+router.get("/leaderboard", protect, getLeaderboard);
 router.put("/avatar", protect, uploadSingleImage, updateAvatar);
+
+// Self-service (mobile app Settings) — all specific paths under /me, so they
+// must stay above the /:id block below or Express would match "me" as an id.
+router.put("/me", protect, validate(updateMyProfileSchema), updateMyProfile);
+router.put("/me/bank", protect, validate(updateMyBankSchema), updateMyBank);
+router.put(
+  "/me/password",
+  protect,
+  validate(changeMyPasswordSchema),
+  changeMyPassword,
+);
+router.get("/me/preferences", protect, getMyPreferences);
+router.put(
+  "/me/preferences",
+  protect,
+  validate(updateMyPreferencesSchema),
+  updateMyPreferences,
+);
 router.post(
   "/forgot-password",
   authLimiter,

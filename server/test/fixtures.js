@@ -2,6 +2,7 @@
 // required fields, so tests only need to override what's relevant to them.
 import Subscription from "../models/Subscription.model.js";
 import Realtor from "../models/realtor.model.js";
+import Client from "../models/client.model.js";
 import Estate from "../models/estate.model.js";
 import { Buy2SellLead } from "../models/Buy2sell.model.js";
 
@@ -21,6 +22,18 @@ export async function makeRealtor(overrides = {}) {
     birthDate: new Date("1990-01-01"),
     passwordHash: "not-a-real-hash",
     referralCode: `REF-${suffix}`,
+    ...overrides,
+  });
+}
+
+export async function makeClient(overrides = {}) {
+  const suffix = uniqueSuffix();
+  return Client.create({
+    firstName: "Client",
+    lastName: suffix,
+    email: `client-${suffix}@example.com`,
+    phone: "+2348000000000",
+    passwordHash: "not-a-real-hash",
     ...overrides,
   });
 }

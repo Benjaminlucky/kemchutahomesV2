@@ -1,4 +1,5 @@
 import Realtor from "../models/realtor.model.js";
+import { Commission } from "../models/Commission.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import cloudinary from "../utils/cloudinary.config.js";
@@ -259,6 +260,207 @@ export const getMyRecruits = async (req, res) => {
   } catch (error) {
     console.error("Get My Recruits Error:", error);
     res.status(500).json({ message: "Failed to fetch recruits" });
+  }
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
+   LEADERBOARD
+   "Confirmed" earnings = status in [approved, paid] — same definition the
+   admin analytics topRealtors card uses, so a realtor's rank here always
+   agrees with what an admin sees. Excludes pending (not yet confirmed) and
+   clawedback (reversed) commissions.
+──────────────────────────────────────────────────────────────────────────── */
+
+export const getLeaderboard = async (req, res) => {
+  try {
+    const meId = String(req.user.id);
+
+    const [earningsAgg, recruitAgg] = await Promise.all([
+      Commission.aggregate([
+        { $match: { status: { $in: ["approved", "paid"] } } },
+        {
+          $group: {
+            _id: "$realtorId",
+            totalNet: { $sum: "$netAmount" },
+            commissionCount: { $sum: 1 },
+          },
+        },
+        { $sort: { totalNet: -1 } },
+      ]),
+      Realtor.aggregate([
+        { $match: { recruitedBy: { $ne: null } } },
+        { $group: { _id: "$recruitedBy", downlineCount: { $sum: 1 } } },
+        { $sort: { downlineCount: -1 } },
+      ]),
+    ]);
+
+    // One lookup for every realtor referenced by either board, plus "me" in
+    // case I'm not in either (avoids one query per row).
+    const neededIds = new Set([
+      ...earningsAgg.slice(0, 10).map((r) => String(r._id)),
+      ...recruitAgg.slice(0, 10).map((r) => String(r._id)),
+      meId,
+    ]);
+    const realtors = await Realtor.find({ _id: { $in: [...neededIds] } })
+      .select("firstName lastName avatar referralCode")
+      .lean();
+    const byId = new Map(realtors.map((r) => [String(r._id), r]));
+
+    const topEarners = earningsAgg.slice(0, 10).map((r, i) => {
+      const p = byId.get(String(r._id));
+      return {
+        rank: i + 1,
+        realtorId: String(r._id),
+        firstName: p?.firstName ?? "",
+        lastName: p?.lastName ?? "",
+        avatar: p?.avatar ?? null,
+        referralCode: p?.referralCode ?? "",
+        totalNet: r.totalNet,
+        commissionCount: r.commissionCount,
+      };
+    });
+
+    const topRecruiters = recruitAgg.slice(0, 10).map((r, i) => {
+      const p = byId.get(String(r._id));
+      return {
+        rank: i + 1,
+        realtorId: String(r._id),
+        firstName: p?.firstName ?? "",
+        lastName: p?.lastName ?? "",
+        avatar: p?.avatar ?? null,
+        referralCode: p?.referralCode ?? "",
+        downlineCount: r.downlineCount,
+      };
+    });
+
+    const earningsIdx = earningsAgg.findIndex((r) => String(r._id) === meId);
+    const recruitIdx = recruitAgg.findIndex((r) => String(r._id) === meId);
+
+    return res.json({
+      topEarners,
+      topRecruiters,
+      myStats: {
+        earningsRank: earningsIdx >= 0 ? earningsIdx + 1 : earningsAgg.length + 1,
+        totalNet: earningsIdx >= 0 ? earningsAgg[earningsIdx].totalNet : 0,
+        commissionCount:
+          earningsIdx >= 0 ? earningsAgg[earningsIdx].commissionCount : 0,
+        recruitRank: recruitIdx >= 0 ? recruitIdx + 1 : recruitAgg.length + 1,
+        downlineCount: recruitIdx >= 0 ? recruitAgg[recruitIdx].downlineCount : 0,
+      },
+    });
+  } catch (error) {
+    console.error("Get Leaderboard Error:", error);
+    res.status(500).json({ message: "Failed to load leaderboard" });
+  }
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
+   SELF-SERVICE PROFILE (mobile app Settings)
+──────────────────────────────────────────────────────────────────────────── */
+
+// Full self-service snapshot returned by every /me/* mutation below, so
+// setUser() on the client never clobbers fields a different screen just set
+// (e.g. saving bank details shouldn't wipe out phone/state in the store).
+const myProfileSnapshot = (realtor) => ({
+  id: realtor._id,
+  firstName: realtor.firstName,
+  lastName: realtor.lastName,
+  email: realtor.email,
+  phone: realtor.phone,
+  state: realtor.state,
+  bank: realtor.bank,
+  accountName: realtor.accountName,
+  accountNumber: realtor.accountNumber,
+  role: realtor.role,
+  avatar: realtor.avatar,
+  referralCode: realtor.referralCode,
+  referralLink: realtor.referralLink,
+});
+
+// PUT /api/realtors/me
+export const updateMyProfile = async (req, res) => {
+  try {
+    const updated = await Realtor.findByIdAndUpdate(req.user.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!updated) return res.status(404).json({ message: "Realtor not found" });
+    return res.json(myProfileSnapshot(updated));
+  } catch (err) {
+    console.error("UPDATE MY PROFILE ERROR:", err);
+    return res.status(500).json({ message: "Couldn't update profile" });
+  }
+};
+
+// PUT /api/realtors/me/bank
+export const updateMyBank = async (req, res) => {
+  try {
+    const updated = await Realtor.findByIdAndUpdate(req.user.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!updated) return res.status(404).json({ message: "Realtor not found" });
+    return res.json(myProfileSnapshot(updated));
+  } catch (err) {
+    console.error("UPDATE MY BANK ERROR:", err);
+    return res.status(500).json({ message: "Couldn't update bank details" });
+  }
+};
+
+// PUT /api/realtors/me/password
+export const changeMyPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const realtor = await Realtor.findById(req.user.id);
+    if (!realtor) return res.status(404).json({ message: "Realtor not found" });
+
+    const isMatch = await bcrypt.compare(currentPassword, realtor.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    realtor.passwordHash = await bcrypt.hash(newPassword, 12);
+    await realtor.save();
+
+    return res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    console.error("CHANGE MY PASSWORD ERROR:", err);
+    return res.status(500).json({ message: "Couldn't change password" });
+  }
+};
+
+// GET /api/realtors/me/preferences
+export const getMyPreferences = async (req, res) => {
+  try {
+    const realtor = await Realtor.findById(req.user.id).select("preferences");
+    if (!realtor) return res.status(404).json({ message: "Realtor not found" });
+    return res.json({
+      pushEnabled: realtor.preferences?.pushEnabled ?? true,
+      emailEnabled: realtor.preferences?.emailEnabled ?? true,
+    });
+  } catch (err) {
+    console.error("GET MY PREFERENCES ERROR:", err);
+    return res.status(500).json({ message: "Couldn't load preferences" });
+  }
+};
+
+// PUT /api/realtors/me/preferences
+export const updateMyPreferences = async (req, res) => {
+  try {
+    const { pushEnabled, emailEnabled } = req.body;
+    const updated = await Realtor.findByIdAndUpdate(
+      req.user.id,
+      { preferences: { pushEnabled, emailEnabled } },
+      { new: true, runValidators: true },
+    ).select("preferences");
+    if (!updated) return res.status(404).json({ message: "Realtor not found" });
+    return res.json({
+      pushEnabled: updated.preferences.pushEnabled,
+      emailEnabled: updated.preferences.emailEnabled,
+    });
+  } catch (err) {
+    console.error("UPDATE MY PREFERENCES ERROR:", err);
+    return res.status(500).json({ message: "Couldn't save preferences" });
   }
 };
 

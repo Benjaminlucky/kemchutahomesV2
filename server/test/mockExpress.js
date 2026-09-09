@@ -32,6 +32,7 @@ export function mockReq({
   body = {},
   params = {},
   query = {},
+  user,
 } = {}) {
-  return { cookies, headers, method, body, params, query };
+  return { cookies, headers, method, body, params, query, user };
 }

@@ -35,6 +35,13 @@ const RealtorSchema = new mongoose.Schema({
 
   role: { type: String, enum: ["admin", "realtor"], default: "realtor" },
 
+  // Mobile app self-service notification toggles (Settings > Notifications).
+  // Both default true so existing realtors keep receiving what they already get.
+  preferences: {
+    pushEnabled: { type: Boolean, default: true },
+    emailEnabled: { type: Boolean, default: true },
+  },
+
   // ✅ Password reset
   resetPasswordToken: { type: String },
   resetPasswordExpiry: { type: Date },

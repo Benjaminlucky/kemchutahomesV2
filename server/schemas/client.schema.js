@@ -26,3 +26,17 @@ export const clientResetPasswordSchema = z.object({
 export const checkEmailQuerySchema = z.object({
   email: z.string().trim().min(1, "Email is required"),
 });
+
+// PUT /api/clients/me — self-service profile edit (mobile app). Email is
+// intentionally excluded: it's the login identifier and read-only in the UI.
+export const updateMyClientProfileSchema = z.object({
+  firstName: z.string().trim().min(1, "First name is required").optional(),
+  lastName: z.string().trim().min(1, "Last name is required").optional(),
+  phone: z.string().trim().min(7, "Valid phone number is required").optional(),
+});
+
+// PUT /api/clients/me/password
+export const changeMyClientPasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: password,
+});

@@ -143,6 +143,47 @@ export const getClientProfile = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/clients/me — self-service profile edit (mobile app)
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateMyProfile = async (req, res) => {
+  try {
+    const updated = await Client.findByIdAndUpdate(req.user.id, req.body, {
+      new: true,
+      runValidators: true,
+    }).select("-passwordHash");
+    if (!updated) return res.status(404).json({ message: "Client not found" });
+    return res.json(updated);
+  } catch (err) {
+    console.error("UPDATE CLIENT PROFILE ERROR:", err);
+    return res.status(500).json({ message: "Couldn't update profile" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/clients/me/password
+// ─────────────────────────────────────────────────────────────────────────────
+export const changeMyPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const client = await Client.findById(req.user.id);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const isMatch = await bcrypt.compare(currentPassword, client.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    client.passwordHash = await bcrypt.hash(newPassword, 12);
+    await client.save();
+
+    return res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    console.error("CHANGE CLIENT PASSWORD ERROR:", err);
+    return res.status(500).json({ message: "Couldn't change password" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/clients/dashboard
 // Returns subscriptions + buy2sell investments + unified stats
 // ─────────────────────────────────────────────────────────────────────────────
