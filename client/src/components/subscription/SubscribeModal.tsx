@@ -368,10 +368,21 @@ export default function SubscribeModal({
     setLoading(true);
     setApiError("");
     try {
+      // The "6 Months Installment" button is a display label only — the
+      // backend's paymentPlan enum is ["Outright", "Instalment"], so the
+      // literal label must never be sent as-is or this 400s server-side.
+      const isInstalment = form.paymentPlan === "6 Months Installment";
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/subscriptions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estateName, estateId, totalAmount, ...form }),
+        body: JSON.stringify({
+          estateName,
+          estateId,
+          totalAmount,
+          ...form,
+          paymentPlan: isInstalment ? "Instalment" : "Outright",
+          instalmentMonths: isInstalment ? 6 : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to submit subscription.");
