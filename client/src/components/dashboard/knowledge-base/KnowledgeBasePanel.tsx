@@ -25,6 +25,16 @@ import { Select } from "@/components/ui/Input";
 import { FormField, textInputClass } from "@/components/client-auth/FormField";
 import { FAQ_CATEGORIES, type CompanyInfo, type Faq, type KnowledgeBase, type Notice } from "./types";
 
+// Must match server/schemas/knowledgeBase.schema.js's addNoticeSchema —
+// notice text is injected verbatim into the AI's system prompt on every
+// chat request with no downstream truncation, so the cap is load-bearing,
+// not cosmetic. Enforcing it client-side (maxLength + counter below) means
+// an admin sees the limit coming instead of hitting a rejected submit.
+const NOTICE_MAX_LEN = 300;
+// Must match addFaqSchema/updateFaqSchema in the same server schema file.
+const FAQ_QUESTION_MAX_LEN = 300;
+const FAQ_ANSWER_MAX_LEN = 2000;
+
 const COMPANY_FIELDS: { key: keyof CompanyInfo; label: string }[] = [
   { key: "lagosPhone", label: "Lagos Phone" },
   { key: "asabaPhone", label: "Asaba Phone" },
@@ -40,6 +50,21 @@ function fmtDate(d?: string | null) {
   return d
     ? new Date(d).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })
     : "—";
+}
+
+// Surfaces the zod field-level messages from validate.js's 400 response
+// (e.g. "Notice text is too long") instead of the generic "Validation
+// failed" — an admin hitting a length cap needs to know *why*, otherwise
+// the rejection looks random. Mirrors InspectionsTable.tsx's helper.
+function extractErrorMessage(data: unknown, fallback: string): string {
+  if (data && typeof data === "object") {
+    const d = data as { message?: string; errors?: { message: string }[] };
+    if (Array.isArray(d.errors) && d.errors.length) {
+      return d.errors.map((e) => e.message).join(" ");
+    }
+    if (d.message) return d.message;
+  }
+  return fallback;
 }
 
 async function fetchKnowledgeBase(): Promise<KnowledgeBase> {
@@ -173,7 +198,7 @@ function CompanyInfoSection({ companyInfo, onSaved }: { companyInfo: CompanyInfo
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update company info");
+      if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to update company info"));
       return data;
     },
     onSuccess: (data) => {
@@ -228,7 +253,7 @@ function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string)
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to add FAQ");
+      if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to add FAQ"));
       return data;
     },
     onSuccess: () => { setFormTarget(null); onChanged("FAQ added"); },
@@ -243,7 +268,7 @@ function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string)
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update FAQ");
+      if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to update FAQ"));
       return data;
     },
     onSuccess: (_data, { body }) => {
@@ -355,15 +380,23 @@ function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string)
         <div className="space-y-4">
           {formError && <ErrorBanner>{formError}</ErrorBanner>}
           <FormField label="Question">
-            <input value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} className={textInputClass()} />
+            <input
+              value={form.question}
+              onChange={(e) => setForm({ ...form, question: e.target.value.slice(0, FAQ_QUESTION_MAX_LEN) })}
+              maxLength={FAQ_QUESTION_MAX_LEN}
+              className={textInputClass()}
+            />
+            <p className="text-right text-xs text-customBlack-400">{form.question.length}/{FAQ_QUESTION_MAX_LEN}</p>
           </FormField>
           <FormField label="Answer">
             <textarea
               value={form.answer}
-              onChange={(e) => setForm({ ...form, answer: e.target.value })}
+              onChange={(e) => setForm({ ...form, answer: e.target.value.slice(0, FAQ_ANSWER_MAX_LEN) })}
+              maxLength={FAQ_ANSWER_MAX_LEN}
               rows={4}
               className={textInputClass()}
             />
+            <p className="text-right text-xs text-customBlack-400">{form.answer.length}/{FAQ_ANSWER_MAX_LEN}</p>
           </FormField>
           <FormField label="Category">
             <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Faq["category"] })}>
@@ -412,7 +445,7 @@ function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: 
         body: JSON.stringify({ text: noticeText }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to add notice");
+      if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to add notice"));
       return data;
     },
     onSuccess: () => { setText(""); setError(null); onChanged("Notice added"); },
@@ -427,7 +460,7 @@ function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: 
         body: JSON.stringify({ active }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update notice");
+      if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to update notice"));
       return data;
     },
     onSuccess: () => { setError(null); onChanged("Notice updated"); },
@@ -456,10 +489,14 @@ function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: 
           </button>
         </ErrorBanner>
       )}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+      <p className="mb-2 text-xs text-customBlack-400">
+        Max {NOTICE_MAX_LEN} characters — announcements are sent to the AI in full on every chat message.
+      </p>
+      <div className="mb-1 flex flex-col gap-3 sm:flex-row">
         <input
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value.slice(0, NOTICE_MAX_LEN))}
+          maxLength={NOTICE_MAX_LEN}
           placeholder="New announcement text…"
           className={`min-w-0 flex-1 ${textInputClass()}`}
         />
@@ -473,6 +510,13 @@ function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: 
           Add
         </Button>
       </div>
+      <p
+        className={`mb-4 text-right text-xs ${
+          text.length >= NOTICE_MAX_LEN ? "font-bold text-red-500" : "text-customBlack-400"
+        }`}
+      >
+        {text.length}/{NOTICE_MAX_LEN} characters
+      </p>
       <div className="space-y-2">
         {notices.map((notice) => {
           const hidden = notice.active === false;
