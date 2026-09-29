@@ -166,6 +166,18 @@ function TermsModal({ onClose }: { onClose: () => void }) {
               <p style={{ fontSize: 14, color: "#4b5563", lineHeight: 1.8 }}>{body}</p>
             </div>
           ))}
+          {/* New tab so opening the full policies never discards a half-filled subscription form. */}
+          <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7 }}>
+            These clauses form part of our full{" "}
+            <a href="/terms" target="_blank" rel="noopener" style={{ color: "#700CEB", fontWeight: 700, textDecoration: "underline" }}>
+              Terms of Use
+            </a>
+            . Our{" "}
+            <a href="/privacy" target="_blank" rel="noopener" style={{ color: "#700CEB", fontWeight: 700, textDecoration: "underline" }}>
+              Privacy Policy
+            </a>{" "}
+            explains how we handle the personal details you provide.
+          </p>
         </div>
         <div className="shrink-0 px-8 py-5" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
           <button

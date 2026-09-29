@@ -10,15 +10,14 @@ export const mainLink: NavLink[] = [
   { name: "Contact", link: "/contact" },
 ];
 
-// TODO: Refund Policy, Legal, and Terms & Conditions still point at "/" in
-// the legacy app too — wire up real destinations (or drop the links) once
-// those pages/policies exist.
+// The refund policy lives inside the Terms page rather than on its own page,
+// so it stays in one place alongside the subscription terms it depends on.
 export const support: NavLink[] = [
   { name: "Contact", link: "/contact" },
-  { name: "Refund Policy", link: "/" },
+  { name: "Refund Policy", link: "/terms#refunds" },
   { name: "FAQS", link: "/faq" },
-  { name: "Legal", link: "/" },
-  { name: "Terms & Conditions", link: "/" },
+  { name: "Privacy Policy", link: "/privacy" },
+  { name: "Terms & Conditions", link: "/terms" },
 ];
 
 export const social: NavLink[] = [
