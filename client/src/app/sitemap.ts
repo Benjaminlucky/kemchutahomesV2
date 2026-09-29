@@ -12,6 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/developments`, changeFrequency: "daily", priority: 0.9 },
     { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
     { url: `${SITE_URL}/terms`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/delete-account`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   // Generated from the estate collection, lastmod = updatedAt, per PRD FR-1.

@@ -9,7 +9,7 @@ import LegalDocument, {
 export const metadata = buildMetadata({
   title: "Privacy Policy",
   description:
-    "How Kemchuta Homes Limited collects, uses, shares, and protects your personal data under the Nigeria Data Protection Act 2023.",
+    "How Kemchuta Homes Limited collects, uses, shares, and protects your personal data on our website and mobile app under the Nigeria Data Protection Act 2023.",
   path: "/privacy",
 });
 
@@ -50,8 +50,10 @@ export default async function PrivacyPage() {
         <p>
           This policy applies to personal data we process through
           kemchutahomesltd.com and its subdomains (the &ldquo;Website&rdquo;),
-          the client portal, the realtor and staff dashboards, our AI chat
-          assistant, and the offline dealings connected to them &mdash; for
+          the Kemchuta Homes mobile app (the &ldquo;App&rdquo;), the client
+          portal, the realtor and staff dashboards, and our AI chat assistant
+          (together, our &ldquo;Services&rdquo;), and to the offline dealings
+          connected to them &mdash; for
           example when you visit one of our offices, call us, or inspect an
           estate. It covers visitors, prospective and existing clients,
           subscribers, Buy2Sell investors, realtors, and the next of kin or
@@ -79,8 +81,9 @@ export default async function PrivacyPage() {
             </li>
             <li>
               <strong>Account details</strong> &mdash; for client and realtor
-              accounts: name, email, phone number, profile photo (optional),
-              and a password, which we store only as a one-way hash and never
+              accounts: name, email, phone number, profile photo (optional
+              &mdash; in the App you can take one with your camera or choose
+              one from your photos), and a password, which we store only as a one-way hash and never
               in readable form. We also keep security records such as failed
               sign-in attempts and password-reset requests.
             </li>
@@ -102,11 +105,18 @@ export default async function PrivacyPage() {
               duration.
             </li>
             <li>
+              <strong>Identity (KYC) documents</strong> &mdash; photos or
+              scans of identity documents you choose to upload, for example
+              through the App&rsquo;s camera or photo picker, so we can verify
+              your identity for a subscription, investment or realtor
+              account.
+            </li>
+            <li>
               <strong>Payment and transaction records</strong> &mdash;
               amounts paid, payment dates, payment references, instalment
               schedules, receipts, and the documents we generate for you
               (such as allocation letters, agreements and certificates). We do
-              not collect or store your card details on the Website.
+              not collect or store your card details through our Services.
             </li>
             <li>
               <strong>Realtor details</strong> &mdash; in addition to account
@@ -116,13 +126,18 @@ export default async function PrivacyPage() {
             </li>
             <li>
               <strong>AI chat assistant messages</strong> &mdash; the
-              questions you type into the chat assistant on the Website.
+              questions you type into the chat assistant on the Website or in the
+              App.
             </li>
             <li>
               <strong>Technical data</strong> &mdash; your IP address, browser
               and device type, pages visited, and error diagnostics collected
-              automatically when you use the Website (see{" "}
-              <a href="#cookies" className="text-customPurple-600 underline">Cookies and similar technologies</a>).
+              automatically when you use our Services; and, in the App, your
+              device model, operating system and app version, and a push
+              notification token that identifies your device to our
+              notification service (see{" "}
+              <a href="#mobile-app" className="text-customPurple-600 underline">Our mobile app</a> and{" "}
+              <a href="#cookies" className="text-customPurple-600 underline">Cookies and device storage</a>).
             </li>
           </ul>
           <p>
@@ -163,7 +178,7 @@ export default async function PrivacyPage() {
               <strong>For our legitimate interests</strong>, where these are
               not overridden by your rights &mdash; answering enquiries,
               sending payment reminders and service updates, preventing fraud
-              and securing our systems, improving the Website, and
+              and securing our systems, improving our Services, and
               establishing or defending legal claims.
             </li>
             <li>
@@ -188,12 +203,12 @@ export default async function PrivacyPage() {
       body: (
         <>
           <p>
-            The chat assistant on the Website answers questions using
-            information about our estates, prices and FAQs. The messages you
-            type are sent to our AI service provider to generate a reply. We
-            do not save chat transcripts to our database; the conversation is
-            kept in your browser for the current session only and is cleared
-            when you close the tab.
+            The chat assistant on the Website and in the App answers
+            questions using information about our estates, prices and FAQs.
+            The messages you type are sent to our AI service provider to
+            generate a reply. We do not save chat transcripts to our database;
+            the conversation is kept only on your device &mdash; on the
+            Website, in your browser until you close the tab.
           </p>
           <p>
             Please do not enter passwords, identity numbers, bank details or
@@ -201,6 +216,58 @@ export default async function PrivacyPage() {
             mistakes, and nothing it says forms part of any agreement with us
             &mdash; see our{" "}
             <Link href="/terms#ai-assistant" className="text-customPurple-600 underline">Terms of Use</Link>.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: "mobile-app",
+      title: "Our mobile app",
+      body: (
+        <>
+          <p>
+            The App asks for device permissions only when a feature needs
+            them, and you can refuse or later withdraw any permission in your
+            phone&rsquo;s settings. Refusing a permission only switches off
+            the feature that needs it.
+          </p>
+          <ul>
+            <li>
+              <strong>Camera and photos</strong> &mdash; used only when you
+              choose to take or pick a profile photo or an identity document to
+              upload. The App does not access your camera or photo library in
+              the background, and only the images you select are uploaded.
+            </li>
+            <li>
+              <strong>Fingerprint or face unlock</strong> &mdash; if you turn
+              on biometric sign-in, your phone&rsquo;s operating system checks
+              your fingerprint or face and only tells the App whether the
+              check passed. Your biometric data stays on your phone; we never
+              receive or store it.
+            </li>
+            <li>
+              <strong>Push notifications</strong> &mdash; if you allow
+              notifications, your device receives a push token, which we store
+              with your account so we can send you payment reminders,
+              subscription and investment updates, and account alerts. You can
+              turn notifications off at any time in your phone&rsquo;s
+              settings.
+            </li>
+            <li>
+              <strong>Device and diagnostic data</strong> &mdash; device model,
+              operating system and app version, and crash and error reports,
+              which we use to keep the App working and secure.
+            </li>
+            <li>
+              <strong>Sign-in tokens</strong> &mdash; saved on your device to
+              keep you signed in, as described in{" "}
+              <a href="#cookies" className="text-customPurple-600 underline">Cookies and device storage</a>.
+            </li>
+          </ul>
+          <p>
+            The App does not collect your precise location or your contacts,
+            and we do not sell your data or use it for third-party
+            advertising.
           </p>
         </>
       ),
@@ -261,7 +328,7 @@ export default async function PrivacyPage() {
     },
     {
       id: "cookies",
-      title: "Cookies and similar technologies",
+      title: "Cookies and device storage",
       body: (
         <>
           <p>We use a small number of cookies and browser-storage items:</p>
@@ -280,9 +347,17 @@ export default async function PrivacyPage() {
               site announcement bar. These are cleared when you close the tab.
             </li>
             <li>
+              <strong>App sign-in tokens</strong> &mdash; when you sign in to
+              the App, your sign-in tokens are saved on your device so you stay
+              signed in. They are removed when you sign out or uninstall the
+              App, and they stop working when they expire or when your account
+              is deleted.
+            </li>
+            <li>
               <strong>Analytics cookies</strong> &mdash; if enabled, Google
               Analytics sets cookies that help us understand how visitors use
-              the Website in aggregate.
+              the Website in aggregate. The App does not use advertising
+              identifiers and does not show ads.
             </li>
           </ul>
           <p>
@@ -384,9 +459,38 @@ export default async function PrivacyPage() {
             delete records we are legally required to keep.
           </p>
           <p>
+            To delete your account, follow the steps in{" "}
+            <a href="#delete-account" className="text-customPurple-600 underline">Deleting your account</a>.
+          </p>
+          <p>
             If any of your details change &mdash; for example your phone
             number, address or bank account &mdash; please let us know so we
             can keep our records accurate.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: "delete-account",
+      title: "Deleting your account",
+      body: (
+        <>
+          <p>
+            You can delete your client or realtor account at any time, in the
+            App (open your profile and choose <strong>Delete account</strong>)
+            or by emailing us from the address registered to your account.
+            When we delete your account we remove your profile, sign-in
+            details, profile photo, uploaded identity documents, push
+            notification tokens and, for realtors, your bank details.
+          </p>
+          <p>
+            We keep records we are legally required to keep &mdash; such as
+            subscription, payment, investment, commission and title records
+            &mdash; for as long as the law requires, and we keep what we need
+            to honour any subscription or investment that is still active.
+            Full details, including how long each type of record is kept,
+            are on our{" "}
+            <Link href="/delete-account" className="text-customPurple-600 underline">account deletion page</Link>.
           </p>
         </>
       ),
@@ -408,8 +512,9 @@ export default async function PrivacyPage() {
       title: "Third-party websites",
       body: (
         <p>
-          The Website links to third-party services such as Google Maps,
-          WhatsApp, YouTube and social media. Their own privacy policies
+          Our Services link to third-party services such as Google Maps,
+          WhatsApp, YouTube and social media, and the App is distributed
+          through app stores such as Google Play. Their own privacy policies
           govern how they handle your data, and we are not responsible for
           their practices.
         </p>
@@ -422,7 +527,7 @@ export default async function PrivacyPage() {
         <p>
           We may update this policy from time to time. The effective date at
           the top shows when it last changed. If we make a significant change,
-          we will tell you through the Website or by email before it takes
+          we will tell you through our Services or by email before it takes
           effect.
         </p>
       ),
@@ -449,7 +554,7 @@ export default async function PrivacyPage() {
       intro={
         <p>
           Your privacy matters to us. This policy explains what personal data
-          Kemchuta Homes Limited collects, why we collect it, who we share it
+          Kemchuta Homes Limited collects through our website and mobile app, why we collect it, who we share it
           with, how long we keep it, and the rights you have over it.
         </p>
       }

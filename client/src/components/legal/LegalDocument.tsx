@@ -14,20 +14,27 @@ export type LegalContact = {
   address: string;
 };
 
+// The single support address for the legal pages, the account-deletion page
+// and the app-store listings (app.json's support email). Deliberately NOT
+// taken from the branch record: Google Play checks that the policy, the
+// deletion page and the store listing all show the same address, so it
+// must not change just because a branch email is edited in the dashboard.
+export const SUPPORT_EMAIL = "support@kemchutahomesltd.com";
+
 // Mirrors the live HQ branch record — only used if the branches API is
 // unreachable, so a legal page never renders without a way to reach us.
 const FALLBACK_CONTACT: LegalContact = {
-  email: "kemchutahomesltd@gmail.com",
+  email: SUPPORT_EMAIL,
   phone: "08160699199",
   address:
     "NO 36B Ibrahim Babatunde Street, Olive Park Estate, by BisBus Petrol Station Oko-Ado, Sangotedo Lagos.",
 };
 
 /**
- * Contact details for the legal pages come from the same admin-managed
- * branch data as /contact, so an address/phone change in the dashboard
- * doesn't leave the policies pointing at stale details. A branches-API
- * outage degrades to the fallback rather than failing the page.
+ * Phone and address for the legal pages come from the same admin-managed
+ * branch data as /contact, so a change in the dashboard doesn't leave the
+ * policies pointing at stale details; the email is always SUPPORT_EMAIL.
+ * A branches-API outage degrades to the fallback rather than failing the page.
  */
 export async function getLegalContact(): Promise<LegalContact> {
   try {
@@ -35,7 +42,7 @@ export async function getLegalContact(): Promise<LegalContact> {
     const hq = branches.find((b) => b.isHQ) ?? branches[0];
     if (!hq) return FALLBACK_CONTACT;
     return {
-      email: hq.emails?.[0] || FALLBACK_CONTACT.email,
+      email: SUPPORT_EMAIL,
       phone: hq.phones?.[0] || FALLBACK_CONTACT.phone,
       address: hq.address || FALLBACK_CONTACT.address,
     };

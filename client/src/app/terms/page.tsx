@@ -9,7 +9,7 @@ import LegalDocument, {
 export const metadata = buildMetadata({
   title: "Terms of Use",
   description:
-    "The terms that govern your use of the Kemchuta Homes website, plot subscriptions, inspections, the Buy2Sell scheme, and the realtor programme.",
+    "The terms that govern your use of the Kemchuta Homes website and mobile app, plot subscriptions, inspections, the Buy2Sell scheme, and the realtor programme.",
   path: "/terms",
 });
 
@@ -34,15 +34,17 @@ export default async function TermsPage() {
           <p>
             These Terms of Use (&ldquo;Terms&rdquo;) govern your use of
             kemchutahomesltd.com and its subdomains (the &ldquo;Website&rdquo;),
-            the client portal, the realtor dashboard, and the services we offer
-            through them. The Website is operated by Kemchuta Homes Limited
+            the Kemchuta Homes mobile app (the &ldquo;App&rdquo;), the client
+            portal, the realtor dashboard, and the services we offer through
+            them (together, the &ldquo;Platform&rdquo;). The Platform is
+            operated by Kemchuta Homes Limited
             (&ldquo;Kemchuta Homes&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;
             or &ldquo;our&rdquo;), a company incorporated in Nigeria.
           </p>
           <p>
-            By using the Website, creating an account, booking an inspection,
+            By using the Platform, creating an account, booking an inspection,
             subscribing to a plot, or investing through Buy2Sell, you agree to
-            these Terms. If you do not agree, please do not use the Website.
+            these Terms. If you do not agree, please do not use the Platform.
           </p>
           <p>
             A specific transaction may also be governed by written documents
@@ -94,6 +96,14 @@ export default async function TermsPage() {
             attempts, and we may suspend or close an account that breaches
             these Terms or is used fraudulently.
           </li>
+          <li>
+            You can delete your account at any time &mdash; see our{" "}
+            <Link href="/delete-account" className={link}>account deletion page</Link>{" "}
+            for how, and for the records we must keep after deletion.
+            Deleting your account does not cancel an active subscription,
+            instalment plan or Buy2Sell investment; those continue under their
+            Transaction Documents.
+          </li>
         </ul>
       ),
     },
@@ -103,7 +113,7 @@ export default async function TermsPage() {
       body: (
         <>
           <p>
-            We work hard to keep estate information on the Website accurate,
+            We work hard to keep estate information on the Platform accurate,
             but it is provided for general information and does not by itself
             form an offer or contract:
           </p>
@@ -133,7 +143,7 @@ export default async function TermsPage() {
       title: "Site inspections",
       body: (
         <p>
-          You can book a site inspection through the Website or by
+          You can book a site inspection through the Platform or by
           contacting us. Please book at least 24 hours in advance so we can
           coordinate. Inspection dates are subject to confirmation and may be
           rescheduled because of weather, safety or operational reasons. You
@@ -264,7 +274,7 @@ export default async function TermsPage() {
           <ul>
             <li>
               Return rates, terms and minimum or maximum investment amounts
-              shown on the Website are for information and may change. The
+              shown on the Platform are for information and may change. The
               rate, principal, maturity date and payout that apply to you are
               fixed only in your signed Buy2Sell Transaction Documents.
             </li>
@@ -275,7 +285,7 @@ export default async function TermsPage() {
               confirmed and the documents are issued.
             </li>
             <li>
-              Information on the Website is not financial, legal or tax
+              Information on the Platform is not financial, legal or tax
               advice. Consider getting independent advice before investing.
             </li>
           </ul>
@@ -328,7 +338,7 @@ export default async function TermsPage() {
       title: "AI chat assistant",
       body: (
         <p>
-          The chat assistant on the Website is an automated tool that provides
+          The chat assistant on the Platform is an automated tool that provides
           general information. It can make mistakes. Its answers are not
           advice, and they do not create, change or form part of any agreement
           with us. Please confirm prices, availability and terms with our
@@ -338,22 +348,62 @@ export default async function TermsPage() {
       ),
     },
     {
+      id: "mobile-app",
+      title: "Mobile app",
+      body: (
+        <>
+          <p>
+            We grant you a personal, non-exclusive, non-transferable,
+            revocable licence to install and use the App on devices you own or
+            control, only in line with these Terms and the rules of the app
+            store you downloaded it from. You may not copy, modify, reverse
+            engineer or redistribute the App, except where the law allows.
+          </p>
+          <ul>
+            <li>
+              The App may ask for permissions such as camera, photos,
+              notifications and fingerprint or face unlock. Our{" "}
+              <Link href="/privacy#mobile-app" className={link}>Privacy Policy</Link>{" "}
+              explains how each is used. You can refuse or withdraw a
+              permission, but the feature that needs it may not work.
+            </li>
+            <li>
+              If you turn on fingerprint or face unlock, anyone whose
+              fingerprint or face is enrolled on your device may be able to
+              open your account. Only turn it on for a device that you alone
+              control.
+            </li>
+            <li>
+              We may release updates, and some features may require the latest
+              version. You are responsible for your device, its security, and
+              any mobile data charges.
+            </li>
+            <li>
+              Google, Apple and other app-store operators are not parties to
+              these Terms and are not responsible for the App or its support;
+              we are.
+            </li>
+          </ul>
+        </>
+      ),
+    },
+    {
       id: "acceptable-use",
       title: "Acceptable use",
       body: (
         <>
-          <p>When using the Website you must not:</p>
+          <p>When using the Platform you must not:</p>
           <ul>
             <li>give false information or impersonate any person or business;</li>
-            <li>use the Website for fraud or any unlawful purpose;</li>
+            <li>use the Platform for fraud or any unlawful purpose;</li>
             <li>
-              attempt to gain unauthorised access to the Website, other
+              attempt to gain unauthorised access to the Platform, other
               accounts, or our systems, or interfere with their security or
               operation;
             </li>
             <li>
               scrape, copy or harvest content or personal data from the
-              Website by automated means without our written permission; or
+              Platform by automated means without our written permission; or
             </li>
             <li>upload viruses or other harmful code.</li>
           </ul>
@@ -365,7 +415,7 @@ export default async function TermsPage() {
       title: "Intellectual property",
       body: (
         <p>
-          The Website and its content &mdash; including text, photographs,
+          The Platform and its content &mdash; including text, photographs,
           videos, estate layouts, logos and the Kemchuta Homes name &mdash;
           belong to us or our licensors. You may view and print pages for your
           own personal, non-commercial use. You may not reproduce, modify or
@@ -380,7 +430,7 @@ export default async function TermsPage() {
       title: "Third-party links and services",
       body: (
         <p>
-          The Website links to third-party services such as Google Maps,
+          The Platform links to third-party services such as Google Maps,
           WhatsApp, YouTube and social media platforms. We do not control
           them and are not responsible for their content, availability or
           practices.
@@ -389,12 +439,12 @@ export default async function TermsPage() {
     },
     {
       id: "availability",
-      title: "Website availability",
+      title: "Platform availability",
       body: (
         <p>
-          We aim to keep the Website available and accurate, but we do not
+          We aim to keep the Platform available and accurate, but we do not
           guarantee that it will be uninterrupted, error-free or free of
-          viruses. We may change, suspend or withdraw any part of the Website
+          viruses. We may change, suspend or withdraw any part of the Platform
           for maintenance or other reasons.
         </p>
       ),
@@ -407,14 +457,14 @@ export default async function TermsPage() {
           <p>To the extent permitted by law:</p>
           <ul>
             <li>
-              the Website and its content are provided &ldquo;as is&rdquo;
+              the Platform and its content are provided &ldquo;as is&rdquo;
               without warranties of any kind, other than those set out in your
               Transaction Documents;
             </li>
             <li>
               we are not liable for indirect or consequential loss, or for loss
               of profit, business or opportunity, arising from your use of the
-              Website; and
+              Platform; and
             </li>
             <li>
               we are not liable for loss caused by payments made to accounts
@@ -439,7 +489,7 @@ export default async function TermsPage() {
         <p>
           You agree to compensate us for any loss, claim or expense (including
           reasonable legal fees) that arises from your breach of these Terms,
-          your misuse of the Website, or false information you give us.
+          your misuse of the Platform, or false information you give us.
         </p>
       ),
     },
@@ -467,7 +517,7 @@ export default async function TermsPage() {
           We may update these Terms from time to time. The effective date at
           the top shows when they last changed. Changes do not affect
           Transaction Documents you have already signed. If you keep using the
-          Website after a change takes effect, you accept the updated Terms.
+          Platform after a change takes effect, you accept the updated Terms.
         </p>
       ),
     },
@@ -502,7 +552,7 @@ export default async function TermsPage() {
       intro={
         <p>
           Please read these Terms carefully. They explain the rules for using
-          our Website and the terms that apply when you book an inspection,
+          our Platform and the terms that apply when you book an inspection,
           subscribe to a plot, invest through Buy2Sell, or work with us as a
           realtor.
         </p>
