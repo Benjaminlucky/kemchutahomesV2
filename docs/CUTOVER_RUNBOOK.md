@@ -159,13 +159,24 @@ and not part of this runbook. Once that's done, `client-legacy` and the
 The API runs at `api.kemchutahomesltd.com` under DirectAdmin's "Setup
 Node.js App" (LiteSpeed + Passenger), startup file `server/app.cjs`.
 
-**CORS headers must come from Express, not LiteSpeed.** Do not add
-`Header set Access-Control-Allow-*` lines to the API domain's `.htaccess`
-(or the LiteSpeed vhost). A narrower override such as
-`Access-Control-Allow-Methods "GET,POST"` /
-`Access-Control-Allow-Headers "Content-Type, Authorization"` makes browsers
-reject the preflight for every PUT/DELETE and every request carrying
-`X-CSRF-Token` — i.e. every dashboard edit/delete fails while reads work.
+**CORS: the server overrides the app's headers.** go54's LiteSpeed injects
+`Access-Control-Allow-Methods: GET,POST` and
+`Access-Control-Allow-Headers: Content-Type, Authorization` above the
+account level, replacing what Express sends. That makes browsers reject the
+preflight for every PUT/DELETE and every request carrying `X-CSRF-Token` —
+i.e. every dashboard edit/delete fails while reads work. It is countered by
+these lines at the bottom of
+`domains/api.kemchutahomesltd.com/public_html/.htaccess`, after the
+CloudLinux blocks — keep them there, and keep them in sync with the `cors()`
+config in `server/index.js`:
+
+```apache
+<IfModule mod_headers.c>
+Header always set Access-Control-Allow-Methods "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-CSRF-Token"
+</IfModule>
+```
+
 Verify after any server change:
 
 ```
