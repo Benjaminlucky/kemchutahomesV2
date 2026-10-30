@@ -9,9 +9,10 @@
  * deploy or crash at the scheduled minute silently skipped a run, and
  * scaling the API to more than one instance would duplicate every send.
  * This process now owns the scheduler exclusively; index.js no longer
- * starts it. Deploy this as its own service (e.g. a second Railway service
- * with `node worker.js` as its start command) — it does not listen on a
- * port and does not need one.
+ * starts it. Run this as its own long-lived process on hosts that allow one
+ * (`node worker.js`) — it does not listen on a port and does not need one.
+ * On go54 DirectAdmin, where Passenger only runs web apps, use
+ * scripts/runJob.js from the panel's Cron Jobs page instead.
  *
  * Job runs are additionally guarded by utils/jobRunGuard.js so that even if
  * this process is accidentally scaled to more than one instance, or restarts

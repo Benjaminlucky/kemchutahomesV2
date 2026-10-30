@@ -55,12 +55,12 @@ const emailWrap = (content) => `
   </div>
 </div></body></html>`;
 
-export function startScheduler() {
+// Job bodies keyed by their runOnce() name. Shared by startScheduler() (the
+// long-lived worker) and scripts/runJob.js (one-shot runner for hosts where
+// a system cron triggers each job instead, e.g. DirectAdmin/cPanel).
+export const jobs = {
   // ── Job 1: Payment reminders — 8:00am daily ────────────────────────────
-  cron.schedule(
-    "0 8 * * *",
-    () =>
-      runOnce("payment-reminders", async () => {
+  "payment-reminders": async () => {
         console.log("📅 Cron: running payment reminders...");
         try {
           const count = await sendPaymentReminders();
@@ -68,15 +68,10 @@ export function startScheduler() {
         } catch (err) {
           console.error("📅 Cron payment reminders error:", err.message);
         }
-      }),
-    { timezone: "Africa/Lagos" },
-  );
+  },
 
   // ── Job 2: Post-inspection follow-ups — 9:00am daily ──────────────────
-  cron.schedule(
-    "0 9 * * *",
-    () =>
-      runOnce("post-inspection-followups", async () => {
+  "post-inspection-followups": async () => {
       console.log("📅 Cron: running post-inspection follow-ups...");
       try {
         const threeDaysAgo = new Date();
@@ -129,31 +124,21 @@ export function startScheduler() {
       } catch (err) {
         console.error("📅 Cron post-inspection error:", err.message);
       }
-      }),
-    { timezone: "Africa/Lagos" },
-  );
+  },
 
   // ── Job 3: Finalise commissions — 2:00am daily ────────────────────────
-  cron.schedule(
-    "0 2 * * *",
-    () =>
-      runOnce("commission-finalise", async () => {
+  "commission-finalise": async () => {
         try {
           await finalisePendingCommissions();
         } catch (err) {
           console.error("📅 Cron commission finalise error:", err.message);
         }
-      }),
-    { timezone: "Africa/Lagos" },
-  );
+  },
 
   // ── Job 4: Auto-mature Buy2Sell investments — 7:00am daily ────────────
   // Checks all active investments whose maturityDate has passed,
   // marks them as "matured", sends client notification + admin alert.
-  cron.schedule(
-    "0 7 * * *",
-    () =>
-      runOnce("buy2sell-maturity", async () => {
+  "buy2sell-maturity": async () => {
       console.log("📅 Cron: checking Buy2Sell maturities...");
       try {
         const now = new Date();
@@ -253,9 +238,19 @@ export function startScheduler() {
       } catch (err) {
         console.error("📅 Cron Buy2Sell maturity error:", err.message);
       }
-      }),
-    { timezone: "Africa/Lagos" },
-  );
+  },
+};
+
+export function startScheduler() {
+  const schedule = (expression, jobName) =>
+    cron.schedule(expression, () => runOnce(jobName, jobs[jobName]), {
+      timezone: "Africa/Lagos",
+    });
+
+  schedule("0 8 * * *", "payment-reminders");
+  schedule("0 9 * * *", "post-inspection-followups");
+  schedule("0 2 * * *", "commission-finalise");
+  schedule("0 7 * * *", "buy2sell-maturity");
 
   console.log("📅 Follow-up scheduler started");
 }
