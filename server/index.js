@@ -165,22 +165,36 @@ async function start() {
       logger.warn({ err: err.message }, "Cloudinary unreachable at boot (non-fatal)"),
     );
 
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    logger.info("Connected to MongoDB");
-    // Scheduled jobs run in a separate process — see worker.js — so a web
-    // dyno restart or horizontal scale-out can no longer duplicate or drop
-    // a cron run.
-  } catch (err) {
-    logger.error(
-      { err: err.message },
-      "MongoDB connection error (server will still start; /healthz will report degraded)",
-    );
-  }
+  // Scheduled jobs run in a separate process — see worker.js /
+  // scripts/runJob.js — so a web restart or scale-out can no longer
+  // duplicate or drop a cron run.
+  connectMongo();
 
   app.listen(process.env.PORT || 3000, () =>
     logger.info({ port: process.env.PORT || 3000 }, "Server is running"),
   );
+}
+
+// Mongoose only auto-reconnects after a *successful* first connection — if
+// the initial connect fails, every query in this process buffers for 10s and
+// throws forever. On go54, LiteSpeed spawns extra Node processes under load,
+// so one unlucky boot (Atlas blip, DNS hiccup) left a process that failed
+// every request it was routed (realtor login/signup, estates, branches)
+// until restarted. Keep retrying in the background instead; /healthz reports
+// degraded meanwhile.
+const MONGO_RETRY_MS = 10_000;
+
+async function connectMongo() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10_000 });
+    logger.info("Connected to MongoDB");
+  } catch (err) {
+    logger.error(
+      { err: err.message, retryInMs: MONGO_RETRY_MS },
+      "MongoDB connection error (server keeps running; /healthz reports degraded)",
+    );
+    setTimeout(connectMongo, MONGO_RETRY_MS);
+  }
 }
 
 start();
