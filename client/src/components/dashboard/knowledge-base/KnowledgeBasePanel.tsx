@@ -113,8 +113,16 @@ export default function KnowledgeBasePanel({ initial }: { initial: KnowledgeBase
     initialData: initial ?? undefined,
   });
 
-  function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
+  // Every KB write returns the updated list (faqs/notices/companyInfo), so
+  // apply that straight to the cache instead of refetching. The API serves
+  // GET /api/knowledge-base from a per-process in-memory cache, and on go54
+  // LiteSpeed can route the refetch to a different Node process whose copy
+  // is still up to 5 min old — which made an added/deleted notice look like
+  // it had silently reverted.
+  function applyPatch(patch: Partial<KnowledgeBase>) {
+    queryClient.setQueryData<KnowledgeBase>(["knowledge-base"], (old) =>
+      old ? { ...old, ...patch, updatedAt: new Date().toISOString() } : old,
+    );
   }
 
   if (isLoading) {
@@ -152,9 +160,9 @@ export default function KnowledgeBasePanel({ initial }: { initial: KnowledgeBase
         <StatCard label="Last Updated" value={fmtDate(kb.updatedAt)} icon={Clock} tone="bg-green-50 text-green-600" />
       </div>
 
-      <CompanyInfoSection companyInfo={kb.companyInfo} onSaved={() => { setToast("Company info updated"); invalidate(); }} />
-      <FaqSection faqs={kb.faqs} onChanged={(msg) => { setToast(msg); invalidate(); }} />
-      <NoticesSection notices={kb.notices} onChanged={(msg) => { setToast(msg); invalidate(); }} />
+      <CompanyInfoSection companyInfo={kb.companyInfo} onSaved={(companyInfo) => { setToast("Company info updated"); applyPatch({ companyInfo }); }} />
+      <FaqSection faqs={kb.faqs} onChanged={(msg, faqs) => { setToast(msg); applyPatch({ faqs }); }} />
+      <NoticesSection notices={kb.notices} onChanged={(msg, notices) => { setToast(msg); applyPatch({ notices }); }} />
     </div>
   );
 }
@@ -181,7 +189,7 @@ function SectionHeader({
   );
 }
 
-function CompanyInfoSection({ companyInfo, onSaved }: { companyInfo: CompanyInfo; onSaved: () => void }) {
+function CompanyInfoSection({ companyInfo, onSaved }: { companyInfo: CompanyInfo; onSaved: (companyInfo: CompanyInfo) => void }) {
   const [form, setForm] = useState<CompanyInfo>(companyInfo);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,7 +217,7 @@ function CompanyInfoSection({ companyInfo, onSaved }: { companyInfo: CompanyInfo
       setForm(data.companyInfo);
       setDirty(false);
       setError(null);
-      onSaved();
+      onSaved(data.companyInfo);
     },
     onError: (err) => setError(err.message || "Failed to update company info"),
   });
@@ -238,14 +246,14 @@ function CompanyInfoSection({ companyInfo, onSaved }: { companyInfo: CompanyInfo
   );
 }
 
-function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string) => void }) {
+function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string, faqs: Faq[]) => void }) {
   const [formTarget, setFormTarget] = useState<"new" | Faq | null>(null);
   const [form, setForm] = useState({ question: "", answer: "", category: "General" as Faq["category"] });
   const [deleteTarget, setDeleteTarget] = useState<Faq | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
-  const addMutation = useDashboardMutation<unknown, typeof form>({
+  const addMutation = useDashboardMutation<{ faqs: Faq[] }, typeof form>({
     mutationFn: async (body) => {
       const res = await dashboardFetch("/api/knowledge-base/faqs", {
         method: "POST",
@@ -256,11 +264,11 @@ function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string)
       if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to add FAQ"));
       return data;
     },
-    onSuccess: () => { setFormTarget(null); onChanged("FAQ added"); },
+    onSuccess: (data) => { setFormTarget(null); onChanged("FAQ added", data.faqs); },
     onError: (err) => setFormError(err.message || "Failed to add FAQ"),
   });
 
-  const updateMutation = useDashboardMutation<unknown, { id: string; body: Partial<Faq> }>({
+  const updateMutation = useDashboardMutation<{ faqs: Faq[] }, { id: string; body: Partial<Faq> }>({
     mutationFn: async ({ id, body }) => {
       const res = await dashboardFetch(`/api/knowledge-base/faqs/${id}`, {
         method: "PUT",
@@ -271,9 +279,9 @@ function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string)
       if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to update FAQ"));
       return data;
     },
-    onSuccess: (_data, { body }) => {
+    onSuccess: (data, { body }) => {
       if (body.question !== undefined) setFormTarget(null);
-      onChanged("FAQ updated");
+      onChanged("FAQ updated", data.faqs);
     },
     onError: (err, { body }) => {
       const message = err.message || "Failed to update FAQ";
@@ -282,15 +290,17 @@ function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string)
     },
   });
 
-  const deleteMutation = useDashboardMutation<unknown, Faq>({
+  const deleteMutation = useDashboardMutation<{ faqs: Faq[] }, Faq>({
     mutationFn: async (faq) => {
       const res = await dashboardFetch(`/api/knowledge-base/faqs/${faq._id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to delete FAQ");
       return data;
     },
-    onSuccess: () => { setDeleteTarget(null); onChanged("FAQ deleted"); },
-    onError: (err) => setFormError(err.message || "Failed to delete FAQ"),
+    onSuccess: (data) => { setDeleteTarget(null); onChanged("FAQ deleted", data.faqs); },
+    // rowError, not formError — the form modal is closed during a delete, so
+    // an error set there was never visible and the failure looked silent.
+    onError: (err) => { setDeleteTarget(null); setRowError(err.message || "Failed to delete FAQ"); },
   });
 
   function openNew() {
@@ -432,12 +442,12 @@ function FaqSection({ faqs, onChanged }: { faqs: Faq[]; onChanged: (msg: string)
   );
 }
 
-function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: (msg: string) => void }) {
+function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: (msg: string, notices: Notice[]) => void }) {
   const [text, setText] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Notice | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const addMutation = useDashboardMutation<unknown, string>({
+  const addMutation = useDashboardMutation<{ notices: Notice[] }, string>({
     mutationFn: async (noticeText) => {
       const res = await dashboardFetch("/api/knowledge-base/notices", {
         method: "POST",
@@ -448,11 +458,11 @@ function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: 
       if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to add notice"));
       return data;
     },
-    onSuccess: () => { setText(""); setError(null); onChanged("Notice added"); },
+    onSuccess: (data) => { setText(""); setError(null); onChanged("Notice added", data.notices); },
     onError: (err) => setError(err.message || "Failed to add notice"),
   });
 
-  const updateMutation = useDashboardMutation<unknown, { id: string; active: boolean }>({
+  const updateMutation = useDashboardMutation<{ notices: Notice[] }, { id: string; active: boolean }>({
     mutationFn: async ({ id, active }) => {
       const res = await dashboardFetch(`/api/knowledge-base/notices/${id}`, {
         method: "PUT",
@@ -463,19 +473,20 @@ function NoticesSection({ notices, onChanged }: { notices: Notice[]; onChanged: 
       if (!res.ok) throw new Error(extractErrorMessage(data, "Failed to update notice"));
       return data;
     },
-    onSuccess: () => { setError(null); onChanged("Notice updated"); },
+    onSuccess: (data) => { setError(null); onChanged("Notice updated", data.notices); },
     onError: (err) => setError(err.message || "Failed to update notice"),
   });
 
-  const deleteMutation = useDashboardMutation<unknown, Notice>({
+  const deleteMutation = useDashboardMutation<{ notices: Notice[] }, Notice>({
     mutationFn: async (notice) => {
       const res = await dashboardFetch(`/api/knowledge-base/notices/${notice._id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to delete notice");
       return data;
     },
-    onSuccess: () => { setDeleteTarget(null); onChanged("Notice deleted"); },
-    onError: (err) => setError(err.message || "Failed to delete notice"),
+    onSuccess: (data) => { setDeleteTarget(null); onChanged("Notice deleted", data.notices); },
+    // Close the confirm dialog so the error banner behind it is visible.
+    onError: (err) => { setDeleteTarget(null); setError(err.message || "Failed to delete notice"); },
   });
 
   return (

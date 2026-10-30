@@ -1,7 +1,7 @@
 import rateLimit from "express-rate-limit";
 
 // express-rate-limit reads req.ip; keep default keying (trust proxy is set
-// by the hosting platform — Railway sits behind a proxy).
+// in index.js — LiteSpeed on go54 sits in front as a reverse proxy).
 
 // ── Auth endpoints (login/signup/register/forgot/reset across all 3 principals) ──
 // Brute-force / credential-stuffing guard.

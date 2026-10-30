@@ -35,9 +35,9 @@ import cloudinary from "./utils/cloudinary.config.js";
 
 const app = express();
 
-// Railway sits in front of the app as a single reverse-proxy hop — trust
-// exactly that hop's X-Forwarded-For so express-rate-limit keys requests by
-// real client IP instead of the proxy's IP.
+// LiteSpeed (go54 DirectAdmin) sits in front of the app as a single
+// reverse-proxy hop — trust exactly that hop's X-Forwarded-For so
+// express-rate-limit keys requests by real client IP instead of the proxy's.
 app.set("trust proxy", 1);
 
 // ── Security headers ─────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ app.use(
 
 // ── Structured request logging (PRD FR-6) ────────────────────────────────────
 // Registered early so even a request rejected by CORS or auth still gets
-// logged. /healthz is excluded — Railway/uptime monitors poll it frequently
+// logged. /healthz is excluded — uptime monitors poll it frequently
 // enough that logging every hit would just be noise.
 app.use(
   pinoHttp({
@@ -85,6 +85,14 @@ app.use(
       else callback(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true,
+    // Spelled out rather than left to cors()'s defaults: the dashboard sends
+    // PUT/PATCH/DELETE and the X-CSRF-Token header (lib/dashboardFetch.ts) on
+    // every write. If the web server in front of this app (LiteSpeed on go54)
+    // overrides these headers with a narrower list — e.g. an .htaccess
+    // `Header set Access-Control-Allow-Methods "GET,POST"` — browsers reject
+    // the preflight and every dashboard edit/delete silently fails.
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
   }),
 );
 

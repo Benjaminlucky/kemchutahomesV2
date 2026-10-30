@@ -44,7 +44,7 @@ two ways to do this — it's plain DNS, no reverse proxy to run or maintain:
 ```
 kemchutahomesltd.com            → client (Next.js)   — public site
 app.kemchutahomesltd.com        → client-legacy       — /dashboard/*, /client/portal/*, auth pages
-kemchutahomes-production.up.railway.app → server       — API, unchanged, both frontends call it
+api.kemchutahomesltd.com        → server (go54 DirectAdmin) — API, both frontends call it
 ```
 
 (A path-based split at a CDN/proxy layer is the alternative if you'd rather
@@ -153,3 +153,44 @@ built (see above), but finishing the dashboard port (Phase 6 — the 11
 remaining admin sections listed above) is a separate, larger body of work
 and not part of this runbook. Once that's done, `client-legacy` and the
 `app.<domain>` subdomain in this runbook's DNS split can be retired.
+
+## go54 DirectAdmin hosting (API)
+
+The API runs at `api.kemchutahomesltd.com` under DirectAdmin's "Setup
+Node.js App" (LiteSpeed + Passenger), startup file `server/app.cjs`.
+
+**CORS headers must come from Express, not LiteSpeed.** Do not add
+`Header set Access-Control-Allow-*` lines to the API domain's `.htaccess`
+(or the LiteSpeed vhost). A narrower override such as
+`Access-Control-Allow-Methods "GET,POST"` /
+`Access-Control-Allow-Headers "Content-Type, Authorization"` makes browsers
+reject the preflight for every PUT/DELETE and every request carrying
+`X-CSRF-Token` — i.e. every dashboard edit/delete fails while reads work.
+Verify after any server change:
+
+```
+curl -si -X OPTIONS https://api.kemchutahomesltd.com/api/knowledge-base/notices/x \
+  -H "Origin: https://kemchutahomesltd.com" \
+  -H "Access-Control-Request-Method: DELETE" \
+  -H "Access-Control-Request-Headers: x-csrf-token,content-type" | grep -i access-control
+```
+
+Expect `Allow-Methods` to include `PUT` and `DELETE` and `Allow-Headers`
+to include `X-CSRF-Token`.
+
+**Environment.** Put production values in `server/.env` (see
+`.env.example`). Panel environment variables don't reach cron jobs. Must
+include `NODE_ENV=production`, `COOKIE_DOMAIN=.kemchutahomesltd.com` (so the
+site can read the `csrf_token` cookie), and
+`NEXTJS_REVALIDATE_URL=https://kemchutahomesltd.com`.
+
+**Scheduled jobs.** Passenger can't keep `worker.js` alive. Add these in
+DirectAdmin → Cron Jobs (server time; adjust if it isn't Africa/Lagos),
+using the Node binary from the app's virtualenv:
+
+```
+0 2 * * *  cd ~/<app-root>/server && ~/nodevenv/<app-root>/<ver>/bin/node scripts/runJob.js commission-finalise
+0 7 * * *  cd ~/<app-root>/server && ~/nodevenv/<app-root>/<ver>/bin/node scripts/runJob.js buy2sell-maturity
+0 8 * * *  cd ~/<app-root>/server && ~/nodevenv/<app-root>/<ver>/bin/node scripts/runJob.js payment-reminders
+0 9 * * *  cd ~/<app-root>/server && ~/nodevenv/<app-root>/<ver>/bin/node scripts/runJob.js post-inspection-followups
+```
