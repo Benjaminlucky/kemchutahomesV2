@@ -205,3 +205,21 @@ using the Node binary from the app's virtualenv:
 0 8 * * *  cd ~/<app-root>/server && ~/nodevenv/<app-root>/<ver>/bin/node scripts/runJob.js payment-reminders
 0 9 * * *  cd ~/<app-root>/server && ~/nodevenv/<app-root>/<ver>/bin/node scripts/runJob.js post-inspection-followups
 ```
+
+**Database backups.** `scripts/backupDb.js` dumps every collection to
+`/home/kemchut1/db-backups/kemchuta-db-<date>.jsonl.gz` and keeps the newest
+14 (`BACKUP_DIR` / `BACKUP_KEEP` in `.env` override these). Cron, 3:00 am:
+
+```
+0 3 * * * /home/kemchut1/nodevenv/kemchuta-api/22/bin/node /home/kemchut1/kemchuta-api/scripts/backupDb.js >> /home/kemchut1/kemchuta-api/cron.log 2>&1
+```
+
+Download the newest file off the server regularly. To restore (dry run
+first — nothing is written without `--yes`; `--drop` replaces existing
+collections), then restart the app so indexes are rebuilt:
+
+```
+cd ~/kemchuta-api
+~/nodevenv/kemchuta-api/22/bin/node scripts/restoreDb.js ~/db-backups/<file>
+~/nodevenv/kemchuta-api/22/bin/node scripts/restoreDb.js ~/db-backups/<file> --yes --drop
+```
